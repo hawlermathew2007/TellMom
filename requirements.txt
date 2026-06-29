@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]==0.24.0
+python-dotenv
+pydantic
+pydantic-settings
+PyJWT
+passlib
+python-multipart
+python-jose
+cryptography 
+requests
+aiofiles
+transformers
+torch
+websockets==12.0
