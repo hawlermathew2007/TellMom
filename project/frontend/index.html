@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Dashboard — Flagged Chats</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      font-size: 1.4rem;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 16px;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 8px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #111;
+    }
+    .messages {
+      max-height: 120px;
+      overflow-y: auto;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .messages li {
+      padding: 2px 0;
+      border-bottom: 1px solid #333;
+    }
+    button {
+      background: #333;
+      color: #fff;
+      border: 1px solid #666;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #444;
+    }
+    #error {
+      color: #f66;
+      margin-top: 12px;
+    }
+    #status {
+      color: #888;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Flagged Chats — Parent Review</h1>
+  <div id="error"></div>
+  <div id="status"></div>
+  <table>
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Messages</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="flags-body">
+      <tr><td colspan="3">Loading…</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    const errorEl = document.getElementById("error");
+    const statusEl = document.getElementById("status");
+    const tbody = document.getElementById("flags-body");
+
+    async function loadFlags() {
+      errorEl.textContent = "";
+      try {
+        const res = await fetch("/api/flags?resolved=false");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const flags = await res.json();
+        renderTable(flags);
+        statusEl.textContent = `Last updated: ${new Date().toLocaleTimeString()} — ${flags.length} unresolved flag(s)`;
+      } catch (err) {
+        errorEl.textContent = "Failed to load flags: " + err.message;
+        tbody.innerHTML = "";
+      }
+    }
+
+    function renderTable(flags) {
+      if (flags.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3">No unresolved flags.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = flags.map(flag => {
+        const msgs = flag.flagged_chats
+          .map(m => `<li>${escapeHtml(m)}</li>`)
+          .join("");
+        return `
+          <tr>
+            <td>${escapeHtml(flag.user_id)}</td>
+            <td><ul class="messages">${msgs}</ul></td>
+            <td><button onclick="resolveFlag('${escapeAttr(flag.user_id)}')">Resolve</button></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function resolveFlag(userId) {
+      errorEl.textContent = "";
+      try {
+        const res = await fetch(`/api/flags/${encodeURIComponent(userId)}/resolve`, {
+          method: "POST",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadFlags();
+      } catch (err) {
+        errorEl.textContent = "Failed to resolve flag: " + err.message;
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+      return str.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    }
+
+    loadFlags();
+    setInterval(loadFlags, 15000);
+  </script>
+</body>
+</html>

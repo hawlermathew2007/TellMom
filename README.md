@@ -45,10 +45,11 @@ source ~/.venv/bin/activate
 pip -r requirements.txt
 
 # Open API
+cd backend
 python app.py
 
 # Run Frontend
-cd src
+cd frontend
 npm start
 ```
 # Future Works
