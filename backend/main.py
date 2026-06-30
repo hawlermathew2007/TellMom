@@ -4,8 +4,8 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import config
-from classifier_client import classifier_client
+from core import config
+from core.classifier_client import classifier_client
 from database.session import init_db
 from routers import alerts, auth, children, flags, ingest, parent
 

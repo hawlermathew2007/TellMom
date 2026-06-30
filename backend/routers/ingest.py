@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend import process_ingest
 from database.session import get_db
-from models import IngestRequest, IngestResponse
+from schemas.ingest import IngestRequest, IngestResponse
+from services.ingest import process_ingest
 
 router = APIRouter()
 

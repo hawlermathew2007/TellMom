@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from database.models import Parent
 from database.session import get_db
-from dependencies import get_current_parent
+from core.dependencies import get_current_parent
 from schemas.auth import ParentLogin, ParentRegister, ParentResponse, TokenResponse
 from services.auth import create_access_token, hash_password, verify_password
 

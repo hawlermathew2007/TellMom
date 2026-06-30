@@ -5,10 +5,11 @@ from adapters.base import ChatPlatform
 from adapters.discord import DiscordAdapter
 from adapters.minecraft import MinecraftAdapter
 from adapters.roblox import RobloxAdapter
-from cache import message_cache
-from classifier_client import classifier_client
-from models import FlaggedUser, IngestResponse
+from core.cache import message_cache
+from core.classifier_client import classifier_client
 from database.models import ChildAccount
+from schemas.flags import FlaggedUser
+from schemas.ingest import IngestResponse
 from services.messages import notify_parents_in_chat, persist_chat_messages
 
 ADAPTER_MAP = {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 
-from backend import flag_store
-from models import FlaggedUser
+from schemas.flags import FlaggedUser
+from services.ingest import flag_store
 
 router = APIRouter()
 

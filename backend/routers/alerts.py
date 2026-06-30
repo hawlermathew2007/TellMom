@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from database.models import Alert, Parent
 from database.session import SessionLocal, get_db
-from dependencies import get_current_parent
+from core.dependencies import get_current_parent
 from schemas.alerts import AlertResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager

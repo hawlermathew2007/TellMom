@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-import config
-from models import ClassifierResult
+from core import config
+from schemas.classifier import ClassifierResult
 
 
 class ClassifierClient:

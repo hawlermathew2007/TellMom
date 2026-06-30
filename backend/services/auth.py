@@ -4,7 +4,7 @@ import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-import config
+from core import config
 from database.models import Parent
 
 

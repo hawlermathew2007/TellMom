@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from database.models import ChildAccount, Parent
 from database.session import get_db
-from dependencies import get_current_parent
+from core.dependencies import get_current_parent
 from schemas.children import ChildAccountCreate, ChildAccountResponse, ChildAccountUpdate
 
 router = APIRouter(prefix="/children", tags=["children"])
