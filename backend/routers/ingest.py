@@ -14,8 +14,9 @@ async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> Inges
         return await process_ingest(
             db,
             request.platform,
+            request.user_id,
             request.server_id,
-            request.chat_group,
+            request.message,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
