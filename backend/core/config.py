@@ -20,3 +20,6 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+MESSAGE_CACHE_TTL_HOURS = int(os.getenv("MESSAGE_CACHE_TTL_HOURS", "24"))
+CLASSIFIER_MIN_MESSAGES = int(os.getenv("CLASSIFIER_MIN_MESSAGES", "7"))

@@ -1,31 +1,39 @@
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+from core import config
 from schemas.grooming import GroomingAnalysis
 
 
+@dataclass
+class CachedMessage:
+    platform: str
+    server_id: str
+    user_id: str
+    message: str
+    created_at: datetime
+
+
 class MessageCache:
-    def __init__(self):
-        self.counts: dict[str, int] = {}
-        self.messages: dict[str, list[str]] = {}
+    def __init__(self, ttl_hours: int | None = None) -> None:
+        self._ttl = timedelta(hours=ttl_hours or config.MESSAGE_CACHE_TTL_HOURS)
+        self._entries: list[CachedMessage] = []
 
-    def update(self, chat_group: dict[str, list[str]]) -> dict[str, list[str]]:
-        new_messages: dict[str, list[str]] = {}
+    def _purge_expired(self) -> None:
+        cutoff = datetime.now(UTC) - self._ttl
+        self._entries = [entry for entry in self._entries if entry.created_at >= cutoff]
 
-        for user_id, msgs in chat_group.items():
-            if user_id not in self.messages:
-                self.messages[user_id] = []
-            self.messages[user_id].extend(msgs)
-
-            new_count = len(self.messages[user_id])
-            if new_count > self.counts.get(user_id, 0):
-                self.counts[user_id] = new_count
-                new_messages[user_id] = msgs
-
-        return new_messages
-
-    def get_messages(self, user_id: str) -> list[str]:
-        return self.messages.get(user_id, [])
-
-    def all_counts(self) -> dict[str, int]:
-        return dict(self.counts)
+    def add(self, platform: str, server_id: str, user_id: str, message: str) -> None:
+        self._purge_expired()
+        self._entries.append(
+            CachedMessage(
+                platform=platform,
+                server_id=server_id,
+                user_id=user_id,
+                message=message,
+                created_at=datetime.now(UTC),
+            )
+        )
 
 
 message_cache = MessageCache()
