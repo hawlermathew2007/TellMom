@@ -11,7 +11,7 @@ Recent reports have highlighted the scale of this challenge. In 2023, Roblox rep
 # Solution
 Therefore, we created TellMom to act as an intelligent early-warning system for families. By using AI-powered conversation analysis, TellMom helps identify potential threats before they escalate, giving parents the information they need to protect their children while respecting their privacy and independence using COPPA regulations.
 
-# Architecture
+# Current Architecture
 How children Roblox are handled (This is a prototype, not a real production. For more details, look at Future Works)
 ```
 Roblox (ChatService)
@@ -29,6 +29,11 @@ Dashboard
    -  Risk assessment appears on RIGHT
    -  Alert pops up at top
 ```
+Overall architecture:
+
+![](imgs/20260630-122609.png)
+![](imgs/20260630-122510.png)
+
 # Technologies
 Some kind of table or list yada yada
 
@@ -43,6 +48,7 @@ pip -r requirements.txt
 python app.py
 
 # Run Frontend
+cd src
 npm start
 ```
 # Future Works
