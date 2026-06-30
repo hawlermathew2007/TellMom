@@ -10,6 +10,7 @@ from core.classifier_client import classifier_client
 from database.models import ChildAccount
 from schemas.flags import FlaggedUser
 from schemas.ingest import IngestResponse
+from services.explanation import get_or_generate_explanation
 from services.messages import notify_parents_in_chat, persist_chat_messages
 
 ADAPTER_MAP = {
@@ -76,12 +77,23 @@ async def process_ingest(
     for result in results:
         if result.is_pedo:
             flagged_messages = message_cache.get_messages(result.user_id)
+            explanation = await get_or_generate_explanation(
+                db,
+                platform_enum,
+                result.user_id,
+                server_id,
+                normalized,
+            )
+            explanation_payload = (
+                explanation.model_dump(mode="json") if explanation is not None else None
+            )
             flag_store[result.user_id] = FlaggedUser(
                 user_id=result.user_id,
                 server_id=server_id,
                 platform=platform,
                 flagged_chats=flagged_messages,
                 resolved=False,
+                explanation=explanation,
             )
             newly_flagged.append(result.user_id)
 
@@ -100,6 +112,7 @@ async def process_ingest(
                 normalized,
                 result.user_id,
                 flagged_messages,
+                explanation_payload,
             )
             parents_notified += children_before
 

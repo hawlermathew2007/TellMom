@@ -101,3 +101,142 @@ li.muted {
   align-items: center;
   gap: 1rem;
 }
+
+.alert-list li {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.alert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+}
+
+.alert-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+button.secondary {
+  background: #334155;
+  border-color: #475569;
+}
+
+.grooming-explanation {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #334155;
+  width: 100%;
+}
+
+.grooming-explanation h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.overall-assessment {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.overall-assessment p {
+  margin: 0.35rem 0;
+}
+
+.overall-assessment .uncertainties {
+  color: #fcd34d;
+}
+
+.grooming-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.grooming-stage {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.grooming-stage summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.grooming-stage summary::-webkit-details-marker {
+  display: none;
+}
+
+.stage-label {
+  font-weight: 600;
+  flex: 1;
+}
+
+.stage-status {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.stage-status.status-observed {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+.stage-status.status-possible {
+  background: #78350f;
+  color: #fde68a;
+}
+
+.stage-status.status-none {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.stage-confidence {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.stage-evidence {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.stage-evidence ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.stage-evidence li {
+  display: list-item;
+  border: none;
+  padding: 0.15rem 0;
+}
+
+.stage-reasoning {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.explanation-pending {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-style: italic;
+}
