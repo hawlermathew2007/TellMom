@@ -1,15 +1,13 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 
-
 class ChatPlatform(Enum):
-    ROBLOX = "roblox"
     DISCORD = "discord"
     MINECRAFT = "minecraft"
 
 
 class BaseChatAdapter(ABC):
-    platform: ChatPlatform
+    chat_platform: ChatPlatform
 
     @abstractmethod
     def normalize(self, raw: dict) -> dict:

@@ -3,18 +3,20 @@ from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from core import config
+from adapters.discord import DiscordAdapter
+from adapters.minecraft import MinecraftAdapter
 from core.cache import message_cache
 from core.classifier_client import classifier_client
 from database.models import ChildAccount
 from schemas.flags import FlaggedUser
 from schemas.ingest import IngestResponse
 from services.explanation import get_or_generate_explanation
-from services.messages import (
-    count_server_messages,
-    load_server_chat_group,
-    notify_parents_in_chat,
-    persist_chat_message,
-)
+from services.messages import notify_parents_in_chat, persist_chat_messages
+
+ADAPTER_MAP = {
+    ChatPlatform.DISCORD: DiscordAdapter,
+    ChatPlatform.MINECRAFT: MinecraftAdapter,
+}
 
 flag_store: dict[str, FlaggedUser] = {}
 
