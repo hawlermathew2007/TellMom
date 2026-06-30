@@ -1,0 +1,23 @@
+2026-06-30 12:44:12,254 - __main__ - INFO - [+] Child Safety Monitor starting...
+2026-06-30 12:44:12,254 - __main__ - INFO - Database: sqlite:///./child_safety.db
+2026-06-30 12:44:12,254 - __main__ - INFO - Model: ./models/grooming-detector-finetuned
+2026-06-30 12:44:12,255 - __main__ - INFO - Device: cpu
+2026-06-30 12:44:12,255 - services.data_retention - INFO - [+] Data retention scheduler started
+2026-06-30 12:44:15,469 - __main__ - INFO - [+] Child Safety Monitor shutting down...
+2026-06-30 12:48:41,010 - __main__ - INFO - [+] Child Safety Monitor starting...
+2026-06-30 12:48:41,010 - __main__ - INFO - Database: sqlite:///./database/child_safety.db
+2026-06-30 12:48:41,010 - __main__ - INFO - Model: ./models/grooming-detector-finetuned
+2026-06-30 12:48:41,010 - __main__ - INFO - Device: cpu
+2026-06-30 12:48:41,010 - services.data_retention - INFO - [+] Data retention scheduler started
+2026-06-30 12:48:53,190 - routes.alerts - INFO - [+] WebSocket connected for real-time alerts
+2026-06-30 12:48:53,203 - routes.alerts - INFO - [+] WebSocket connected for real-time alerts
+2026-06-30 12:48:56,436 - routes.alerts - ERROR - [+] WebSocket error: (1001, '')
+2026-06-30 12:48:56,436 - routes.alerts - INFO - [*] WebSocket disconnected
+2026-06-30 12:48:56,436 - routes.alerts - ERROR - [+] WebSocket error: (1001, '')
+2026-06-30 12:48:56,436 - routes.alerts - INFO - [*] WebSocket disconnected
+2026-06-30 12:49:38,894 - routes.auth - INFO - [+] Parent registration: parent@example.com
+2026-06-30 12:49:38,966 - routes.auth - INFO - [+] Parent account created: parent@example.com
+2026-06-30 12:49:38,967 - routes.auth - INFO - [+] Sending verification email to parent@example.com
+2026-06-30 12:49:58,606 - routes.auth - INFO - [+] Consent stored in DB for child: JaneDoe
+2026-06-30 12:49:59,127 - routes.alerts - INFO - [+] WebSocket connected for real-time alerts
+2026-06-30 12:49:59,143 - routes.alerts - INFO - [+] WebSocket connected for real-time alerts

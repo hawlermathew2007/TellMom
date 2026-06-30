@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = "sqlite:///./child_safety.db"
+    database_url: str = "sqlite:///./database/child_safety.db"
 
     # JWT
     jwt_secret_key: str = "T311M0M"

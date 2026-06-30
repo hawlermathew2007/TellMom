@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from typing import Optional
 import logging
 from sqlalchemy.orm import Session
-from database import Parent, Consent, Child, get_db
+from database.database import Parent, Consent, Child, get_db
 from fastapi import Depends
 
 from config import settings
