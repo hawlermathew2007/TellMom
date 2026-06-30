@@ -2,23 +2,23 @@
   "name": "roblox-chat-adaptor",
   "tree": {
     "$className": "DataModel",
-
+    
     "ReplicatedStorage": {
-      "Shared": {
-        "$path": "src/shared"
+      "ChatGuard": {
+        "$path": "src/ReplicatedStorage"
       }
     },
 
     "ServerScriptService": {
-      "Server": {
-        "$path": "src/server"
+      "ChatGuard": {
+        "$path": "src/ServerScriptService"
       }
     },
 
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": {
-          "$path": "src/client"
+        "ChatGuard": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts"
         }
       }
     },
