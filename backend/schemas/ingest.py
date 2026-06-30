@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field
-
+from datetime import datetime
 
 class IngestRequest(BaseModel):
     platform: str
     user_id: str
     server_id: str
     message: str = Field(min_length=1)
+    timestamp: datetime
 
 
 class IngestResponse(BaseModel):

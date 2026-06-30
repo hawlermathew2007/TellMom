@@ -2,16 +2,33 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HTTPService = game:GetService("HttpService")
 local clientSendMessageEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ClientSendMessage
 
-
-local function sendMessageForAnalyzing()
-    
-end
+local API_URL = "http://45.151.155.170"
 
 -- Receive messages sent from clients
 clientSendMessageEvent.OnServerEvent:Connect(function(player: Player, message)
-    print(player.Name, " said:")
-    print("Message: ", message.Text)
-    print("Timestamp: ", message.TimeStampUTC)
-end)
+    local success, response = pcall(function()
+        return HTTPService:RequestAsync({
+            Url = API_URL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+            },
+            Body = HTTPService:JSONEncode({
+                platform = "ROBLOX",
+                user_id = player.UserId,
+                server_id = game.JobId,
+                message = message.Text,
+                timestamp = message.TimeStampUTC,
+            }),
+        })
+    end)
 
-print("server started")
+    if not response.Success then
+        warn(`API returned error status {response.StatusCode} for {player.Name}: {response.Body}`)
+        return
+    end
+
+    local data = HTTPService:JSONDecode(response.Body)
+
+    print(data)
+end)
