@@ -1,31 +1,3 @@
-"""
-WebSocket Inference Pipeline — Online Grooming Detection
-=========================================================
-Architecture:
-  1. Server check-in (HTTP handshake) — must succeed before anything else
-  2. WSClientThread     — receives raw conversation payloads from the backend
-  3. InferenceThread    — encodes text, classifies, emits structured results
-
-Output per conversation:
-  {
-    "conv_id":         str,
-    "is_predator":     bool,          # binary flag
-    "risk_level":      "normal" | "medium" | "high",
-    "probability":     float,         # P(predatory), 0.0 – 1.0
-    "message_count":   int,
-    "text_preview":    str,
-    "flagged_at":      ISO-8601 str
-  }
-
-Risk thresholds (configurable in RISK_THRESHOLDS below):
-  probability < 0.40  → "normal"
-  0.40 ≤ prob < 0.70  → "medium"
-  probability ≥ 0.70  → "high"
-
-Dependencies:
-  pip install websocket-client sentence-transformers scikit-learn joblib torch requests
-"""
-
 from __future__ import annotations
 
 import json
@@ -34,14 +6,25 @@ import queue
 import socket
 import threading
 import time
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
-import joblib
 import requests
 import websocket
-from sentence_transformers import SentenceTransformer
+
+from .config import (
+    CHECKIN_ENDPOINT,
+    BACKEND_PASSWORD,
+    CHECKIN_TIMEOUT_S,
+    CHECKIN_RETRY_MAX,
+    CHECKIN_RETRY_DELAY,
+    BACKEND_WS_URL,
+    RECONNECT_DELAY,
+    QUEUE_MAXSIZE,
+    TCP_HOST,
+    TCP_PORT
+)
+from .model import GroomingDetector
+from .utils import clean_text, utc_now_iso
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,61 +32,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
 logger = logging.getLogger("grooming.pipeline")
-
-# --- Server ---
-BACKEND_BASE_URL = "http://localhost:8000"  # REST base
-BACKEND_WS_URL = "ws://localhost:8000/learner_stream"
-BACKEND_PASSWORD = "1234"
-TCP_HOST = "0.0.0.0"
-TCP_PORT = 9999
-
-CHECKIN_ENDPOINT = f"{BACKEND_BASE_URL}/checkin"  # GET or POST
-CHECKIN_TIMEOUT_S = 10
-CHECKIN_RETRY_MAX = 3
-CHECKIN_RETRY_DELAY = 5  # seconds between retries
-
-# --- Model ---
-CHECKPOINT_DIR = Path("checkpoints")
-EMB_KEY = "SimCSE-Base-RoBERTa"
-CLF_KEY = "SVM"
-MODEL_NAME = "princeton-nlp/sup-simcse-roberta-base"
-DEVICE = "cuda"  # set to "cuda" if GPU is available
-
-# --- Queue ---
-QUEUE_MAXSIZE = 512
-RECONNECT_DELAY = 5
-
-# --- Risk thresholds ---
-RISK_THRESHOLDS: Dict[str, float] = {
-    "high": 0.70,  # probability >= this → "high"
-    "medium": 0.40,  # probability >= this → "medium"
-    # below "medium" threshold → "normal"
-}
-
-
-def clean_text(text: str) -> str:
-    """Light cleaning matching Section 3.1 of the training pipeline."""
-    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-    tokens = text.split()
-    filtered = [
-        tok
-        for tok in tokens
-        if sum(1 for c in tok if ord(c) < 128) / max(len(tok), 1) >= 0.70
-    ]
-    return " ".join(filtered).strip()
-
-
-def probability_to_risk(probability: float) -> str:
-    """Map a [0, 1] probability to a human-readable risk level."""
-    if probability >= RISK_THRESHOLDS["high"]:
-        return "high"
-    if probability >= RISK_THRESHOLDS["medium"]:
-        return "medium"
-    return "normal"
-
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 class CheckInError(RuntimeError):
@@ -184,85 +112,6 @@ def server_checkin(
     )
 
 
-class GroomingDetector:
-    """
-    Wraps the SimCSE encoder + trained SVM classifier loaded from disk.
-
-    predict(text) → structured result dict (see module docstring).
-    """
-
-    def __init__(
-        self,
-        model_name: str = MODEL_NAME,
-        emb_key: str = EMB_KEY,
-        clf_key: str = CLF_KEY,
-        checkpoint_dir: Path = CHECKPOINT_DIR,
-        device: str = DEVICE,
-    ):
-        logger.info(f"Loading SimCSE encoder: {model_name}  device={device}")
-        self.encoder = SentenceTransformer(model_name, device=device)
-
-        # Build the exact same filename pattern as the training pipeline
-        safe_key = emb_key.replace(" ", "_").replace("/", "-")
-        clf_path = checkpoint_dir / f"clf_{safe_key}_{clf_key}.joblib"
-
-        if not clf_path.exists():
-            raise FileNotFoundError(
-                f"Classifier checkpoint not found: {clf_path}\n"
-                "Run the training pipeline first (grooming_detection_colab.py)."
-            )
-
-        bundle = joblib.load(clf_path)
-        self.scaler = bundle["scaler"]
-        self.clf = bundle["clf"]
-        logger.info(f"Classifier loaded from: {clf_path}")
-
-    def predict(self, text: str, conv_id: str = "—", message_count: int = 0) -> dict:
-        """
-        Encode one conversation block and return a full prediction dict.
-
-        Args:
-            text:          Merged, cleaned conversation text.
-            conv_id:       Conversation identifier (for logging / downstream).
-            message_count: Original number of messages (metadata only).
-
-        Returns:
-            {
-              "conv_id":       str,
-              "is_predator":   bool,
-              "risk_level":    "normal" | "medium" | "high",
-              "probability":   float,
-              "message_count": int,
-              "text_preview":  str,
-              "flagged_at":    str   (ISO-8601 UTC, present only when is_predator)
-            }
-        """
-        emb = self.encoder.encode(
-            [text], convert_to_numpy=True, normalize_embeddings=False
-        )
-        emb_s = self.scaler.transform(emb)
-
-        label = int(self.clf.predict(emb_s)[0])
-        prob = float(self.clf.predict_proba(emb_s)[0][1])
-
-        risk = probability_to_risk(prob)
-        is_pred = label == 1
-
-        result: dict = {
-            "conv_id": conv_id,
-            "is_predator": is_pred,
-            "risk_level": risk,
-            "probability": round(prob, 4),
-            "message_count": message_count,
-            "text_preview": text[:100],
-        }
-
-        if is_pred:
-            result["flagged_at"] = utc_now_iso()
-
-        return result
-
-
 class WSClientThread(threading.Thread):
     """
     Connects to the backend WebSocket and pushes received payloads onto
@@ -332,13 +181,13 @@ class WSClientThread(threading.Thread):
         if "messages" in payload and isinstance(payload["messages"], list):
             joined = " ".join(str(m) for m in payload["messages"])
             payload["text"] = joined
-            payload["message_count"] = len(payload["messages"])
+            payload["message_count"] = str(len(payload["messages"]))
         elif "text" not in payload or not payload["text"].strip():
             logger.debug("[ws] Empty/invalid payload — skipping.")
             return
 
         payload.setdefault("conv_id", "unknown")
-        payload.setdefault("message_count", 0)
+        payload.setdefault("message_count", str(0))
 
         try:
             self.inference_queue.put_nowait(payload)
@@ -675,7 +524,9 @@ class TCPServerThread(threading.Thread):
             normalized_group: dict[str, list[str]] = {}
             for user_id, messages in chat_group.items():
                 if isinstance(messages, list):
-                    normalized_group[str(user_id)] = [str(message) for message in messages]
+                    normalized_group[str(user_id)] = [
+                        str(message) for message in messages
+                    ]
 
             results = classify_chat_group(self.detector, normalized_group)
             conn.sendall((json.dumps(results) + "\n").encode())
@@ -751,6 +602,8 @@ class ClassifierTCPServer:
 
     def is_alive(self) -> bool:
         return self._tcp_thread is not None and self._tcp_thread.is_alive()
+
+
 def classify_conversations(
     conversations: list[list[str]],
     conv_ids: Optional[list[str]] = None,
@@ -785,8 +638,8 @@ def classify_conversations(
 if __name__ == "__main__":
     import torch
 
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Device: {DEVICE}")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"Device: {device}")
 
     pipeline = InferencePipeline(
         ws_url=BACKEND_WS_URL,
