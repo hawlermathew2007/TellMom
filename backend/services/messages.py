@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
@@ -6,23 +8,65 @@ from schemas.alerts import AlertResponse
 from services.notifications import alert_manager
 
 
-def persist_chat_messages(
+def persist_chat_message(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-    chat_group: dict[str, list[str]],
+    user_id: str,
+    message: str,
 ) -> None:
-    for sender_id, messages in chat_group.items():
-        for content in messages:
-            db.add(
-                ChatMessage(
-                    platform=platform,
-                    server_id=server_id,
-                    sender_platform_user_id=sender_id,
-                    content=content,
-                )
-            )
+    db.add(
+        ChatMessage(
+            platform=platform,
+            server_id=server_id,
+            sender_platform_user_id=user_id,
+            content=message,
+        )
+    )
     db.commit()
+
+
+def load_server_chat_group(
+    db: Session,
+    platform: ChatPlatform,
+    server_id: str,
+    *,
+    max_age_hours: int,
+) -> dict[str, list[str]]:
+    since = datetime.now(UTC) - timedelta(hours=max_age_hours)
+    rows = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
+            ChatMessage.created_at >= since,
+        )
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    chat_group: dict[str, list[str]] = {}
+    for row in rows:
+        chat_group.setdefault(row.sender_platform_user_id, []).append(row.content)
+    return chat_group
+
+
+def count_server_messages(
+    db: Session,
+    platform: ChatPlatform,
+    server_id: str,
+    *,
+    max_age_hours: int,
+) -> int:
+    since = datetime.now(UTC) - timedelta(hours=max_age_hours)
+    return (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
+            ChatMessage.created_at >= since,
+        )
+        .count()
+    )
 
 
 async def notify_parents_in_chat(

@@ -2,22 +2,19 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
-from adapters.discord import DiscordAdapter
-from adapters.minecraft import MinecraftAdapter
-from adapters.roblox import RobloxAdapter
+from core import config
 from core.cache import message_cache
 from core.classifier_client import classifier_client
 from database.models import ChildAccount
 from schemas.flags import FlaggedUser
 from schemas.ingest import IngestResponse
 from services.explanation import get_or_generate_explanation
-from services.messages import notify_parents_in_chat, persist_chat_messages
-
-ADAPTER_MAP = {
-    ChatPlatform.ROBLOX: RobloxAdapter,
-    ChatPlatform.DISCORD: DiscordAdapter,
-    ChatPlatform.MINECRAFT: MinecraftAdapter,
-}
+from services.messages import (
+    count_server_messages,
+    load_server_chat_group,
+    notify_parents_in_chat,
+    persist_chat_message,
+)
 
 flag_store: dict[str, FlaggedUser] = {}
 
@@ -25,29 +22,40 @@ flag_store: dict[str, FlaggedUser] = {}
 async def process_ingest(
     db: Session,
     platform: str,
+    user_id: str,
     server_id: str,
-    chat_group: dict[str, list[str]],
+    message: str,
 ) -> IngestResponse:
     try:
         platform_enum = ChatPlatform(platform)
     except ValueError as exc:
         raise ValueError(f"Unknown platform: {platform}") from exc
 
-    adapter_cls = ADAPTER_MAP[platform_enum]
-    adapter = adapter_cls()
-    normalized = adapter.normalize(chat_group)
+    message_cache.add(platform, server_id, user_id, message)
+    persist_chat_message(db, platform_enum, server_id, user_id, message)
 
-    new_messages = message_cache.update(normalized)
-    if new_messages:
-        persist_chat_messages(db, platform_enum, server_id, new_messages)
+    message_count = count_server_messages(
+        db,
+        platform_enum,
+        server_id,
+        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
+    )
 
-    if not new_messages:
+    if message_count < config.CLASSIFIER_MIN_MESSAGES:
         return IngestResponse(
-            status="no_new_messages",
+            status="below_threshold",
+            message_count=message_count,
             classified_count=0,
             newly_flagged=[],
             parents_notified=0,
         )
+
+    chat_group = load_server_chat_group(
+        db,
+        platform_enum,
+        server_id,
+        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
+    )
 
     try:
         await classifier_client.ensure_connected()
@@ -64,7 +72,7 @@ async def process_ingest(
         )
 
     try:
-        results = await classifier_client.classify(platform, server_id, new_messages)
+        results = await classifier_client.classify(platform, server_id, chat_group)
     except ConnectionError as exc:
         raise HTTPException(
             status_code=503,
@@ -76,13 +84,13 @@ async def process_ingest(
 
     for result in results:
         if result.is_pedo:
-            flagged_messages = message_cache.get_messages(result.user_id)
+            flagged_messages = chat_group.get(result.user_id, [])
             explanation = await get_or_generate_explanation(
                 db,
                 platform_enum,
                 result.user_id,
                 server_id,
-                normalized,
+                chat_group,
             )
             explanation_payload = (
                 explanation.model_dump(mode="json") if explanation is not None else None
@@ -101,7 +109,7 @@ async def process_ingest(
                 db.query(ChildAccount)
                 .filter(
                     ChildAccount.platform == platform_enum,
-                    ChildAccount.platform_user_id.in_(set(normalized.keys())),
+                    ChildAccount.platform_user_id.in_(set(chat_group.keys())),
                 )
                 .count()
             )
@@ -109,7 +117,7 @@ async def process_ingest(
                 db,
                 platform_enum,
                 server_id,
-                normalized,
+                chat_group,
                 result.user_id,
                 flagged_messages,
                 explanation_payload,
@@ -117,7 +125,8 @@ async def process_ingest(
             parents_notified += children_before
 
     return IngestResponse(
-        status="ok",
+        status="classified",
+        message_count=message_count,
         classified_count=len(results),
         newly_flagged=newly_flagged,
         parents_notified=parents_notified,
