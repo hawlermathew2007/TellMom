@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "generate-api": "openapi --input http://localhost:8000/openapi.json --output ./src/api --client fetch"
+    "generate-api": "npx openapi-generator-cli generate -i http://localhost:8000/openapi.json -o ./src/api -g typescript-fetch"
   },
   "dependencies": {
+    "@openapitools/openapi-generator-cli": "^2.39.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
