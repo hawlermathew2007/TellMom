@@ -10,6 +10,7 @@ class ClassifierClient:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self.connected: bool = False
+        self._queue_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         try:
@@ -26,6 +27,15 @@ class ClassifierClient:
             ) from exc
 
     async def classify(
+        self,
+        platform: str,
+        server_id: str,
+        chat_group: dict[str, list[str]],
+    ) -> list[ClassifierResult]:
+        async with self._queue_lock:
+            return await self._classify_unlocked(platform, server_id, chat_group)
+
+    async def _classify_unlocked(
         self,
         platform: str,
         server_id: str,
