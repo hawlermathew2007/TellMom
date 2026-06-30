@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertResponse,
-  AlertResponseFromJSON,
   ChatPlatform,
   ChildAccountResponse,
   ParentResponse,
   ResponseError,
 } from "./apis";
-import { clearToken, getApis, getToken, setToken } from "./apis/client";
+import {
+  acknowledgeAlertWithExplanation,
+  clearToken,
+  fetchAlerts,
+  getApis,
+  getToken,
+  setToken,
+} from "./apis/client";
+import GroomingExplanation from "./components/GroomingExplanation";
+import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
 
 const PLATFORMS = [
   ChatPlatform.Roblox,
@@ -33,8 +40,11 @@ export default function App() {
   const [error, setError] = useState("");
   const [parent, setParent] = useState<ParentResponse | null>(null);
   const [children, setChildren] = useState<ChildAccountResponse[]>([]);
-  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
-  const [liveAlert, setLiveAlert] = useState<AlertResponse | null>(null);
+  const [alerts, setAlerts] = useState<AlertWithExplanation[]>([]);
+  const [liveAlert, setLiveAlert] = useState<AlertWithExplanation | null>(null);
+  const [expandedExplanationId, setExpandedExplanationId] = useState<number | null>(
+    null,
+  );
 
   const [newPlatform, setNewPlatform] = useState<(typeof PLATFORMS)[number]>(
     ChatPlatform.Roblox,
@@ -43,11 +53,11 @@ export default function App() {
   const [newDisplayName, setNewDisplayName] = useState("");
 
   const loadDashboard = useCallback(async () => {
-    const { auth, children: childrenApi, alerts: alertsApi } = getApis();
+    const { auth, children: childrenApi } = getApis();
     const [me, kids, alertList] = await Promise.all([
       auth.getMeApiAuthMeGet(),
       childrenApi.listChildrenApiChildrenGet(),
-      alertsApi.listAlertsApiAlertsGet(),
+      fetchAlerts(),
     ]);
     setParent(me);
     setChildren(kids);
@@ -66,9 +76,12 @@ export default function App() {
       `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`,
     );
     ws.onmessage = (event) => {
-      const payload = AlertResponseFromJSON(JSON.parse(event.data));
-      setLiveAlert(payload);
-      setAlerts((prev) => [payload, ...prev]);
+      const alert = parseAlert(JSON.parse(event.data));
+      setLiveAlert(alert);
+      setAlerts((prev) => [alert, ...prev]);
+      if (alert.explanation) {
+        setExpandedExplanationId(alert.id);
+      }
     };
     return () => ws.close();
   }, [token]);
@@ -118,9 +131,7 @@ export default function App() {
   }
 
   async function acknowledgeAlert(id: number) {
-    const updated = await getApis().alerts.acknowledgeAlertApiAlertsAlertIdAcknowledgePost({
-      alertId: id,
-    });
+    const updated = await acknowledgeAlertWithExplanation(id);
     setAlerts((prev) => prev.map((a) => (a.id === id ? updated : a)));
     if (liveAlert?.id === id) setLiveAlert(null);
   }
@@ -131,6 +142,7 @@ export default function App() {
     setParent(null);
     setChildren([]);
     setAlerts([]);
+    setExpandedExplanationId(null);
   }
 
   if (!token) {
@@ -230,16 +242,47 @@ export default function App() {
 
       <section className="card">
         <h2>Alerts</h2>
-        <ul>
+        <ul className="alert-list">
           {alerts.map((alert) => (
             <li key={alert.id} className={alert.acknowledged ? "muted" : ""}>
-              <div>
-                <strong>{alert.platform}</strong> / server {alert.serverId}
+              <div className="alert-header">
+                <div>
+                  <div>
+                    <strong>{alert.platform}</strong> / server {alert.serverId}
+                  </div>
+                  <div>Flagged: {alert.flaggedUserId}</div>
+                  <div>{alert.messagePreview}</div>
+                </div>
+                <div className="alert-actions">
+                  {alert.explanation && (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        setExpandedExplanationId((current) =>
+                          current === alert.id ? null : alert.id,
+                        )
+                      }
+                    >
+                      {expandedExplanationId === alert.id
+                        ? "Hide analysis"
+                        : "View analysis"}
+                    </button>
+                  )}
+                  {!alert.acknowledged && (
+                    <button onClick={() => acknowledgeAlert(alert.id)}>
+                      Acknowledge
+                    </button>
+                  )}
+                </div>
               </div>
-              <div>Flagged: {alert.flaggedUserId}</div>
-              <div>{alert.messagePreview}</div>
-              {!alert.acknowledged && (
-                <button onClick={() => acknowledgeAlert(alert.id)}>Acknowledge</button>
+              {alert.explanation && expandedExplanationId === alert.id && (
+                <GroomingExplanation analysis={alert.explanation} />
+              )}
+              {!alert.explanation && !alert.acknowledged && (
+                <p className="explanation-pending">
+                  Grooming analysis unavailable (Groq not configured or generation failed).
+                </p>
               )}
             </li>
           ))}

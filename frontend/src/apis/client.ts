@@ -1,4 +1,5 @@
-import { AlertsApi, AuthApi, ChildrenApi, Configuration } from "./index";
+import { AlertsApi, AuthApi, ChildrenApi, Configuration, ResponseError } from "./index";
+import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
 
 const TOKEN_KEY = "tellmom_token";
 
@@ -40,4 +41,32 @@ export function clearToken(): void {
 
 export function getApis() {
   return apis;
+}
+
+async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      Authorization: `Bearer ${token ?? ""}`,
+    },
+  });
+  if (!response.ok) {
+    throw new ResponseError(response, `Request failed (${response.status})`);
+  }
+  return response;
+}
+
+export async function fetchAlerts(): Promise<AlertWithExplanation[]> {
+  const response = await authFetch("/api/alerts");
+  return parseAlerts(await response.json());
+}
+
+export async function acknowledgeAlertWithExplanation(
+  alertId: number,
+): Promise<AlertWithExplanation> {
+  const response = await authFetch(`/api/alerts/${alertId}/acknowledge`, {
+    method: "POST",
+  });
+  return parseAlert(await response.json());
 }
