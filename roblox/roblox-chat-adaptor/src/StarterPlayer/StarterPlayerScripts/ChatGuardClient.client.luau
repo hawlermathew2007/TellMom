@@ -2,6 +2,7 @@ local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local clientSendMessageEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ClientSendMessage
+local serverWarningResponseEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ServerWarningResponse
 
 local function convertToUTC(unixTimeStamp: DateTime): string
     return unixTimeStamp:ToIsoDate()
@@ -15,4 +16,9 @@ TextChatService.SendingMessage:Connect(function(textChatMessage)
     }
 
     clientSendMessageEvent:FireServer(message)
+end)
+
+-- Receive warning response if RequestAsync
+serverWarningResponseEvent.OnServerEvent:Connect(function(player)
+    print("Your message is flagged for being inappropriate")
 end)

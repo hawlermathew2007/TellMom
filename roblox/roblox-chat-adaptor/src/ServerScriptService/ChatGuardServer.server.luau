@@ -1,8 +1,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HTTPService = game:GetService("HttpService")
-local clientSendMessageEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ClientSendMessage
 
-local API_URL = "http://45.151.155.170"
+local clientSendMessageEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ClientSendMessage
+local serverWarningResponseEvent: RemoteEvent = ReplicatedStorage.ChatGuard.ServerWarningResponse
+
+local API_URL = "http://45.151.155.170:8000/api/ingest"
 
 -- Receive messages sent from clients
 clientSendMessageEvent.OnServerEvent:Connect(function(player: Player, message)
@@ -30,5 +32,10 @@ clientSendMessageEvent.OnServerEvent:Connect(function(player: Player, message)
 
     local data = HTTPService:JSONDecode(response.Body)
 
-    print(data)
+    -- Nothing happens, legit message
+    if data.status == "below_threshold" then
+        return
+    end
+
+    serverWarningResponseEvent:FireClient(player)
 end)
