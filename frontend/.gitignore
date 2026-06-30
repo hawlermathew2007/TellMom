@@ -1,3 +1,4 @@
 node_modules
 dist
-src/api
+src/apis/*
+!src/apis/client.ts

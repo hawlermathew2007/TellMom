@@ -14,4 +14,4 @@ npm run dev
 
 The app proxies `/api` to `http://localhost:8000` during development.
 
-After running `generate-api`, import services from `./src/api` instead of the hand-rolled `apiClient.ts` helpers.
+After running `generate-api`, import services from `./src/apis` via the helpers in `./src/apis/client.ts`.

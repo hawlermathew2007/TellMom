@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch, clearToken, getToken, setToken } from "./apiClient";
+import {
+  AlertResponse,
+  AlertResponseFromJSON,
+  ChatPlatform,
+  ChildAccountResponse,
+  ParentResponse,
+  ResponseError,
+} from "./apis";
+import { clearToken, getApis, getToken, setToken } from "./apis/client";
 
-type Parent = { id: number; email: string };
-type Child = {
-  id: number;
-  platform: string;
-  platform_user_id: string;
-  display_name: string | null;
-};
-type Alert = {
-  id: number;
-  child_account_id: number;
-  flagged_user_id: string;
-  platform: string;
-  server_id: string;
-  message_preview: string;
-  acknowledged: boolean;
-  created_at: string;
-};
+const PLATFORMS = [
+  ChatPlatform.Roblox,
+  ChatPlatform.Discord,
+  ChatPlatform.Minecraft,
+] as const;
 
-const PLATFORMS = ["roblox", "discord", "minecraft"] as const;
+function apiErrorMessage(err: unknown): string {
+  if (err instanceof ResponseError) {
+    return err.message || `Request failed (${err.response.status})`;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "Request failed";
+}
 
 export default function App() {
   const [token, setTokenState] = useState<string | null>(getToken());
@@ -27,19 +31,24 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
-  const [parent, setParent] = useState<Parent | null>(null);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [liveAlert, setLiveAlert] = useState<Alert | null>(null);
+  const [parent, setParent] = useState<ParentResponse | null>(null);
+  const [children, setChildren] = useState<ChildAccountResponse[]>([]);
+  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
+  const [liveAlert, setLiveAlert] = useState<AlertResponse | null>(null);
 
-  const [newPlatform, setNewPlatform] = useState<(typeof PLATFORMS)[number]>("roblox");
+  const [newPlatform, setNewPlatform] = useState<(typeof PLATFORMS)[number]>(
+    ChatPlatform.Roblox,
+  );
   const [newUserId, setNewUserId] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
 
   const loadDashboard = useCallback(async () => {
-    const me = await apiFetch<Parent>("/api/auth/me");
-    const kids = await apiFetch<Child[]>("/api/children");
-    const alertList = await apiFetch<Alert[]>("/api/alerts");
+    const { auth, children: childrenApi, alerts: alertsApi } = getApis();
+    const [me, kids, alertList] = await Promise.all([
+      auth.getMeApiAuthMeGet(),
+      childrenApi.listChildrenApiChildrenGet(),
+      alertsApi.listAlertsApiAlertsGet(),
+    ]);
     setParent(me);
     setChildren(kids);
     setAlerts(alertList);
@@ -47,7 +56,7 @@ export default function App() {
 
   useEffect(() => {
     if (!token) return;
-    loadDashboard().catch((err: Error) => setError(err.message));
+    loadDashboard().catch((err: unknown) => setError(apiErrorMessage(err)));
   }, [token, loadDashboard]);
 
   useEffect(() => {
@@ -57,7 +66,7 @@ export default function App() {
       `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`,
     );
     ws.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as Alert;
+      const payload = AlertResponseFromJSON(JSON.parse(event.data));
       setLiveAlert(payload);
       setAlerts((prev) => [payload, ...prev]);
     };
@@ -68,20 +77,19 @@ export default function App() {
     e.preventDefault();
     setError("");
     try {
+      const { auth } = getApis();
       if (mode === "register") {
-        await apiFetch<Parent>("/api/auth/register", {
-          method: "POST",
-          body: JSON.stringify({ email, password }),
+        await auth.registerParentApiAuthRegisterPost({
+          parentRegister: { email, password },
         });
       }
-      const { access_token } = await apiFetch<{ access_token: string }>(
-        "/api/auth/login",
-        { method: "POST", body: JSON.stringify({ email, password }) },
-      );
-      setToken(access_token);
-      setTokenState(access_token);
+      const { accessToken } = await auth.loginParentApiAuthLoginPost({
+        parentLogin: { email, password },
+      });
+      setToken(accessToken);
+      setTokenState(accessToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Auth failed");
+      setError(apiErrorMessage(err));
     }
   }
 
@@ -89,30 +97,29 @@ export default function App() {
     e.preventDefault();
     setError("");
     try {
-      const child = await apiFetch<Child>("/api/children", {
-        method: "POST",
-        body: JSON.stringify({
+      const child = await getApis().children.createChildApiChildrenPost({
+        childAccountCreate: {
           platform: newPlatform,
-          platform_user_id: newUserId,
-          display_name: newDisplayName || null,
-        }),
+          platformUserId: newUserId,
+          displayName: newDisplayName || null,
+        },
       });
       setChildren((prev) => [child, ...prev]);
       setNewUserId("");
       setNewDisplayName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add child");
+      setError(apiErrorMessage(err));
     }
   }
 
   async function removeChild(id: number) {
-    await apiFetch<void>(`/api/children/${id}`, { method: "DELETE" });
+    await getApis().children.deleteChildApiChildrenChildIdDelete({ childId: id });
     setChildren((prev) => prev.filter((c) => c.id !== id));
   }
 
   async function acknowledgeAlert(id: number) {
-    const updated = await apiFetch<Alert>(`/api/alerts/${id}/acknowledge`, {
-      method: "POST",
+    const updated = await getApis().alerts.acknowledgeAlertApiAlertsAlertIdAcknowledgePost({
+      alertId: id,
     });
     setAlerts((prev) => prev.map((a) => (a.id === id ? updated : a)));
     if (liveAlert?.id === id) setLiveAlert(null);
@@ -173,8 +180,8 @@ export default function App() {
 
       {liveAlert && (
         <div className="banner">
-          <strong>Live alert:</strong> flagged user {liveAlert.flagged_user_id} in{" "}
-          {liveAlert.platform} server {liveAlert.server_id}
+          <strong>Live alert:</strong> flagged user {liveAlert.flaggedUserId} in{" "}
+          {liveAlert.platform} server {liveAlert.serverId}
           <button onClick={() => acknowledgeAlert(liveAlert.id)}>Acknowledge</button>
         </div>
       )}
@@ -186,7 +193,9 @@ export default function App() {
         <form className="inline-form" onSubmit={addChild}>
           <select
             value={newPlatform}
-            onChange={(e) => setNewPlatform(e.target.value as (typeof PLATFORMS)[number])}
+            onChange={(e) =>
+              setNewPlatform(e.target.value as (typeof PLATFORMS)[number])
+            }
           >
             {PLATFORMS.map((p) => (
               <option key={p} value={p}>
@@ -211,7 +220,7 @@ export default function App() {
           {children.map((child) => (
             <li key={child.id}>
               <span>
-                {child.display_name ?? child.platform_user_id} ({child.platform})
+                {child.displayName ?? child.platformUserId} ({child.platform})
               </span>
               <button onClick={() => removeChild(child.id)}>Remove</button>
             </li>
@@ -225,10 +234,10 @@ export default function App() {
           {alerts.map((alert) => (
             <li key={alert.id} className={alert.acknowledged ? "muted" : ""}>
               <div>
-                <strong>{alert.platform}</strong> / server {alert.server_id}
+                <strong>{alert.platform}</strong> / server {alert.serverId}
               </div>
-              <div>Flagged: {alert.flagged_user_id}</div>
-              <div>{alert.message_preview}</div>
+              <div>Flagged: {alert.flaggedUserId}</div>
+              <div>{alert.messagePreview}</div>
               {!alert.acknowledged && (
                 <button onClick={() => acknowledgeAlert(alert.id)}>Acknowledge</button>
               )}
