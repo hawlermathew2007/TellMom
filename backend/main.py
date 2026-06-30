@@ -1,35 +1,44 @@
+from contextlib import asynccontextmanager
 import logging
-from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
+import config
 from classifier_client import classifier_client
-from routers import ingest, flags, parent
+from database.session import init_db
+from routers import alerts, auth, children, flags, ingest, parent
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Child Safety Chat Monitor")
 
-app.include_router(ingest.router, prefix="/api")
-app.include_router(flags.router, prefix="/api")
-app.include_router(parent.router, prefix="/api")
-
-FRONTEND_DIR = Path(__file__).parent / "frontend"
-
-
-@app.get("/")
-async def serve_frontend():
-    return FileResponse(FRONTEND_DIR / "index.html")
-
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
     try:
         await classifier_client.ensure_connected()
         logger.info("Classifier connected successfully")
     except ConnectionError:
         logger.warning("Classifier not connected at startup — will retry on ingest")
+    yield
+
+
+app = FastAPI(title="TellMom API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router, prefix="/api")
+app.include_router(children.router, prefix="/api")
+app.include_router(alerts.router, prefix="/api")
+app.include_router(ingest.router, prefix="/api")
+app.include_router(flags.router, prefix="/api")
+app.include_router(parent.router, prefix="/api")
 
 
 if __name__ == "__main__":

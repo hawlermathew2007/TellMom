@@ -25,12 +25,23 @@ class ClassifierClient:
                 f"{config.COLAB_TCP_HOST}:{config.COLAB_TCP_PORT}"
             ) from exc
 
-    async def classify(self, chat_group: dict[str, list[str]]) -> list[ClassifierResult]:
+    async def classify(
+        self,
+        platform: str,
+        server_id: str,
+        chat_group: dict[str, list[str]],
+    ) -> list[ClassifierResult]:
         if not self.connected or self._reader is None or self._writer is None:
             raise RuntimeError("Classifier not connected")
 
         try:
-            payload = json.dumps(chat_group) + "\n"
+            payload = json.dumps(
+                {
+                    "platform": platform,
+                    "server_id": server_id,
+                    "chat_group": chat_group,
+                }
+            ) + "\n"
             self._writer.write(payload.encode())
             await self._writer.drain()
 

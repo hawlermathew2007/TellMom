@@ -1,0 +1,17 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "TellMom child safety monitoring API"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "email-validator>=2.2.0",
+    "fastapi>=0.138.2",
+    "bcrypt>=4.2.0",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.2",
+    "python-jose[cryptography]>=3.4.0",
+    "sqlalchemy>=2.0.40",
+    "uvicorn[standard]>=0.49.0",
+]
