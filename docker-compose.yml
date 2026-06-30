@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tellmom
+      POSTGRES_PASSWORD: tellmom
+      POSTGRES_DB: tellmom
+    ports:
+      - "5432:5432"
+    volumes:
+      - tellmom_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tellmom -d tellmom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  tellmom_pgdata:

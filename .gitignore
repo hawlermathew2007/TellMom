@@ -1,3 +1,4 @@
+# Roblox
 *.rbxlx
 
 # Roblox Studio lock files
@@ -5,3 +6,9 @@
 *.rbxl.lock
 
 sourcemap.json
+
+# Full-stack
+.env
+__pycache__
+node_modules
+.venv
