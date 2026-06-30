@@ -5,16 +5,12 @@ from adapters.base import ChatPlatform
 from core import config
 from core.cache import message_cache
 from core.classifier_client import classifier_client
+from services.classifier_stream import classifier_stream
 from database.models import ChildAccount
 from schemas.flags import FlaggedUser
 from schemas.ingest import IngestResponse
 from services.explanation import get_or_generate_explanation
-from services.messages import (
-    count_server_messages,
-    load_server_chat_group,
-    notify_parents_in_chat,
-    persist_chat_message,
-)
+from services.messages import notify_parents_in_chat, persist_chat_message
 
 flag_store: dict[str, FlaggedUser] = {}
 
@@ -34,12 +30,7 @@ async def process_ingest(
     message_cache.add(platform, server_id, user_id, message)
     persist_chat_message(db, platform_enum, server_id, user_id, message)
 
-    message_count = count_server_messages(
-        db,
-        platform_enum,
-        server_id,
-        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
-    )
+    message_count = message_cache.count_server_messages(platform, server_id)
 
     if message_count < config.CLASSIFIER_MIN_MESSAGES:
         return IngestResponse(
@@ -50,29 +41,14 @@ async def process_ingest(
             parents_notified=0,
         )
 
-    chat_group = load_server_chat_group(
-        db,
-        platform_enum,
-        server_id,
-        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
-    )
+    chat_group = message_cache.load_server_chat_group(platform, server_id)
 
     try:
-        await classifier_client.ensure_connected()
-    except ConnectionError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Classifier not connected. Retry later.",
-        ) from exc
-
-    if not classifier_client.connected:
-        raise HTTPException(
-            status_code=503,
-            detail="Classifier not connected. Retry later.",
-        )
-
-    try:
-        results = await classifier_client.classify(platform, server_id, chat_group)
+        if classifier_stream.connected:
+            results = await classifier_stream.classify(platform, server_id, chat_group)
+        else:
+            await classifier_client.ensure_connected()
+            results = await classifier_client.classify(platform, server_id, chat_group)
     except ConnectionError as exc:
         raise HTTPException(
             status_code=503,

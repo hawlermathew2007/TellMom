@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import queue
+import socket
 import threading
 import time
 from datetime import datetime, timezone
@@ -50,9 +51,11 @@ logging.basicConfig(
 logger = logging.getLogger("grooming.pipeline")
 
 # --- Server ---
-BACKEND_BASE_URL = "http://localhost:5000"  # REST base
-BACKEND_WS_URL = "ws://localhost:5000/learner_stream"
+BACKEND_BASE_URL = "http://localhost:8000"  # REST base
+BACKEND_WS_URL = "ws://localhost:8000/learner_stream"
 BACKEND_PASSWORD = "1234"
+TCP_HOST = "0.0.0.0"
+TCP_PORT = 9999
 
 CHECKIN_ENDPOINT = f"{BACKEND_BASE_URL}/checkin"  # GET or POST
 CHECKIN_TIMEOUT_S = 10
@@ -266,10 +269,18 @@ class WSClientThread(threading.Thread):
     `inference_queue`.
 
     Expected server payload (JSON):
+        Batch job from TellMom backend:
         {
-          "conv_id":  "abc123",           # optional
-          "messages": ["hey", "…"],       # list of raw messages OR
-          "text":     "pre-joined text"   # already-merged text
+          "request_id": "uuid",
+          "platform":   "roblox",
+          "server_id":  "abc123",
+          "chat_group": {"user_a": ["hey", "…"], "user_b": ["…"]}
+        }
+
+        Legacy single-user payload:
+        {
+          "conv_id":  "abc123",
+          "messages": ["hey", "…"]
         }
 
     The thread auto-reconnects on disconnect unless stop() has been called.
@@ -289,6 +300,10 @@ class WSClientThread(threading.Thread):
 
     # ── Public ─────────────────────────────────────────────────────────────
 
+    def send_json(self, payload: dict) -> None:
+        if self._ws:
+            self._ws.send(json.dumps(payload))
+
     def stop(self):
         self._stop_event.set()
         if self._ws:
@@ -305,17 +320,25 @@ class WSClientThread(threading.Thread):
         except (json.JSONDecodeError, TypeError):
             payload = {"text": str(raw)}
 
+        if isinstance(payload.get("chat_group"), dict) and payload.get("request_id"):
+            payload["_kind"] = "batch"
+            try:
+                self.inference_queue.put_nowait(payload)
+            except queue.Full:
+                logger.warning("[ws] Inference queue full — dropping batch job.")
+            return
+
         # Support both pre-joined text and a list of messages
         if "messages" in payload and isinstance(payload["messages"], list):
             joined = " ".join(str(m) for m in payload["messages"])
             payload["text"] = joined
-            payload["message_count"] = str(len(payload["messages"]))
+            payload["message_count"] = len(payload["messages"])
         elif "text" not in payload or not payload["text"].strip():
             logger.debug("[ws] Empty/invalid payload — skipping.")
             return
 
         payload.setdefault("conv_id", "unknown")
-        payload.setdefault("message_count", str(0))
+        payload.setdefault("message_count", 0)
 
         try:
             self.inference_queue.put_nowait(payload)
@@ -361,11 +384,13 @@ class InferenceThread(threading.Thread):
         detector: GroomingDetector,
         inference_queue: queue.Queue,
         result_callback: Optional[Callable[[dict], None]] = None,
+        response_sender: Optional[Callable[[dict], None]] = None,
     ):
         super().__init__(name="InferenceThread", daemon=True)
         self.detector = detector
         self.inference_queue = inference_queue
         self.result_callback = result_callback or self._default_callback
+        self.response_sender = response_sender
         self._stop_event = threading.Event()
 
     def stop(self):
@@ -401,7 +426,18 @@ class InferenceThread(threading.Thread):
                 continue
 
             try:
-                # Clean and merge text exactly as the training pipeline did
+                if item.get("_kind") == "batch":
+                    chat_group = item.get("chat_group", {})
+                    results = classify_chat_group(self.detector, chat_group)
+                    if self.response_sender is not None:
+                        self.response_sender(
+                            {
+                                "request_id": item["request_id"],
+                                "results": results,
+                            }
+                        )
+                    continue
+
                 raw_text = item.get("text", "")
                 cleaned_text = clean_text(raw_text)
                 conv_id = item.get("conv_id", "unknown")
@@ -497,7 +533,10 @@ class InferencePipeline:
         self._queue = queue.Queue(maxsize=self._queue_maxsize)
         self._ws_thread = WSClientThread(self._ws_url, self._password, self._queue)
         self._inf_thread = InferenceThread(
-            self._detector, self._queue, self._result_callback
+            self._detector,
+            self._queue,
+            self._result_callback,
+            response_sender=self._ws_thread.send_json,
         )
 
         self._inf_thread.start()
@@ -533,6 +572,185 @@ class InferencePipeline:
         )
 
 
+def classify_chat_group(
+    detector: GroomingDetector,
+    chat_group: dict[str, list[str]],
+) -> list[dict]:
+    """
+    Classify each user's messages independently.
+
+    Expected input (from backend ingest):
+        {"user_id_a": ["msg1", "msg2"], "user_id_b": ["msg3"]}
+
+    Returns one result per user, aligned with backend ClassifierResult:
+        [{"user_id": str, "is_pedo": bool}, ...]
+    """
+    results: list[dict] = []
+    for user_id, messages in chat_group.items():
+        if not messages:
+            results.append({"user_id": user_id, "is_pedo": False})
+            continue
+
+        raw = " ".join(str(message) for message in messages)
+        cleaned = clean_text(raw)
+        prediction = detector.predict(
+            text=cleaned,
+            conv_id=user_id,
+            message_count=len(messages),
+        )
+        results.append(
+            {
+                "user_id": user_id,
+                "is_pedo": prediction["is_predator"],
+            }
+        )
+    return results
+
+
+class TCPServerThread(threading.Thread):
+    """
+    Listens for newline-delimited JSON requests from the TellMom backend.
+
+    Request:
+        {
+          "platform":  "roblox",
+          "server_id": "abc123",
+          "chat_group": {
+            "user_a": ["hey", "how old are you?"],
+            "user_b": ["im 12"]
+          }
+        }
+
+    Response:
+        [
+          {"user_id": "user_a", "is_pedo": true},
+          {"user_id": "user_b", "is_pedo": false}
+        ]
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        detector: GroomingDetector,
+    ):
+        super().__init__(name="TCPServerThread", daemon=True)
+        self.host = host
+        self.port = port
+        self.detector = detector
+        self._stop_event = threading.Event()
+        self._server_socket: Optional[socket.socket] = None
+
+    def stop(self):
+        self._stop_event.set()
+        if self._server_socket:
+            try:
+                self._server_socket.close()
+            except OSError:
+                pass
+
+    def _handle_client(self, conn: socket.socket) -> None:
+        with conn:
+            buffer = b""
+            while b"\n" not in buffer:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    return
+                buffer += chunk
+
+            request_line = buffer.split(b"\n", 1)[0]
+            try:
+                payload = json.loads(request_line.decode())
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                logger.warning(f"[tcp] Invalid request payload: {exc}")
+                conn.sendall(b"[]\n")
+                return
+
+            chat_group = payload.get("chat_group", {})
+            if not isinstance(chat_group, dict):
+                logger.warning("[tcp] chat_group must be a dict — skipping.")
+                conn.sendall(b"[]\n")
+                return
+
+            normalized_group: dict[str, list[str]] = {}
+            for user_id, messages in chat_group.items():
+                if isinstance(messages, list):
+                    normalized_group[str(user_id)] = [str(message) for message in messages]
+
+            results = classify_chat_group(self.detector, normalized_group)
+            conn.sendall((json.dumps(results) + "\n").encode())
+
+    def run(self):
+        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._server_socket.bind((self.host, self.port))
+        self._server_socket.listen()
+        logger.info(f"[tcp] Listening on {self.host}:{self.port}")
+
+        while not self._stop_event.is_set():
+            try:
+                self._server_socket.settimeout(1.0)
+                conn, addr = self._server_socket.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                if not self._stop_event.is_set():
+                    logger.exception("[tcp] Accept failed.")
+                break
+
+            logger.info(f"[tcp] Connection from {addr}")
+            threading.Thread(
+                target=self._handle_client,
+                args=(conn,),
+                daemon=True,
+            ).start()
+
+        logger.info("[tcp] TCPServerThread stopped.")
+
+
+class ClassifierTCPServer:
+    """Load the detector and serve per-user classifications over TCP."""
+
+    def __init__(
+        self,
+        host: str = TCP_HOST,
+        port: int = TCP_PORT,
+    ):
+        self._host = host
+        self._port = port
+        self._detector: Optional[GroomingDetector] = None
+        self._tcp_thread: Optional[TCPServerThread] = None
+
+    def start(self, block: bool = True) -> None:
+        logger.info("=" * 60)
+        logger.info("  Loading grooming detector")
+        logger.info("=" * 60)
+        self._detector = GroomingDetector()
+
+        logger.info("=" * 60)
+        logger.info("  Starting TCP classifier server")
+        logger.info("=" * 60)
+        self._tcp_thread = TCPServerThread(self._host, self._port, self._detector)
+        self._tcp_thread.start()
+        logger.info("Classifier TCP server running. Press Ctrl-C to stop.")
+
+        if block:
+            try:
+                while self.is_alive():
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("\nKeyboardInterrupt received — shutting down.")
+            finally:
+                self.stop()
+
+    def stop(self) -> None:
+        if self._tcp_thread:
+            self._tcp_thread.stop()
+            self._tcp_thread.join(timeout=5)
+        logger.info("Classifier TCP server stopped.")
+
+    def is_alive(self) -> bool:
+        return self._tcp_thread is not None and self._tcp_thread.is_alive()
 def classify_conversations(
     conversations: list[list[str]],
     conv_ids: Optional[list[str]] = None,
@@ -570,29 +788,9 @@ if __name__ == "__main__":
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Device: {DEVICE}")
 
-    def on_result(result: dict) -> None:
-        """
-        Drop-in result handler.  Replace the body with your downstream logic:
-        DB writes, alert webhooks, moderation queue pushes, etc.
-        """
-        risk_label = result["risk_level"].upper()
-        flag_emoji = {"NORMAL": "✅", "MEDIUM": "⚠️ ", "HIGH": "🚨"}.get(risk_label, "?")
-
-        print(
-            f"\n{flag_emoji}  conv_id      : {result['conv_id']}\n"
-            f"   is_predator  : {result['is_predator']}\n"
-            f"   risk_level   : {risk_label}\n"
-            f"   probability  : {result['probability']:.4f}\n"
-            f"   messages     : {result['message_count']}\n"
-            f"   preview      : {result['text_preview'][:80]!r}"
-        )
-        if result["is_predator"]:
-            print(f"   flagged_at   : {result['flagged_at']}")
-
     pipeline = InferencePipeline(
         ws_url=BACKEND_WS_URL,
         password=BACKEND_PASSWORD,
-        result_callback=on_result,
         checkin_endpoint=CHECKIN_ENDPOINT,
     )
-    pipeline.start(block=True)  # blocks until Ctrl-C
+    pipeline.start(block=True)

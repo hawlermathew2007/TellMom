@@ -35,6 +35,23 @@ class MessageCache:
             )
         )
 
+    def _server_entries(self, platform: str, server_id: str) -> list[CachedMessage]:
+        self._purge_expired()
+        return [
+            entry
+            for entry in self._entries
+            if entry.platform == platform and entry.server_id == server_id
+        ]
+
+    def count_server_messages(self, platform: str, server_id: str) -> int:
+        return len(self._server_entries(platform, server_id))
+
+    def load_server_chat_group(self, platform: str, server_id: str) -> dict[str, list[str]]:
+        chat_group: dict[str, list[str]] = {}
+        for entry in self._server_entries(platform, server_id):
+            chat_group.setdefault(entry.user_id, []).append(entry.message)
+        return chat_group
+
 
 message_cache = MessageCache()
 

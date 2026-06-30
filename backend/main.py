@@ -37,6 +37,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(children.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
+app.include_router(ingest.classifier_router)
 app.include_router(flags.router, prefix="/api")
 app.include_router(parent.router, prefix="/api")
 
