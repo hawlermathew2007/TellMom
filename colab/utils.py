@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from .config import RISK_THRESHOLDS
+from config import RISK_THRESHOLDS
 
 
 def log_section(logger, title: str) -> None:

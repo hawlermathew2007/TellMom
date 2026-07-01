@@ -11,7 +11,7 @@ from typing import Callable, Optional
 import requests
 import websocket
 
-from .config import (
+from config import (
     CHECKIN_ENDPOINT,
     BACKEND_PASSWORD,
     CHECKIN_TIMEOUT_S,
@@ -23,8 +23,8 @@ from .config import (
     TCP_HOST,
     TCP_PORT,
 )
-from .model import GroomingDetector
-from .utils import clean_text, utc_now_iso, log_section
+from model import GroomingDetector
+from utils import clean_text, utc_now_iso, log_section
 
 logging.basicConfig(
     level=logging.INFO,

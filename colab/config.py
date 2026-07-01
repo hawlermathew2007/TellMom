@@ -13,8 +13,8 @@ CHECKIN_RETRY_MAX = 3
 CHECKIN_RETRY_DELAY = 5
 
 CHECKPOINT_DIR = Path("checkpoints")
-EMB_KEY = "SimCSE-Base-RoBERTa"
-CLF_KEY = "SVM"
+SCALER_PATH = "scaler_simcse_base_roberta.joblib"
+CLASSIFIER_PATH = "svm_simcse_base_roberta.joblib"
 MODEL_NAME = "princeton-nlp/sup-simcse-roberta-base"
 DEVICE = "cuda"
 

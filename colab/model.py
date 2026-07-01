@@ -2,7 +2,13 @@ from pathlib import Path
 
 import joblib
 from sentence_transformers import SentenceTransformer
-from .config import CHECKPOINT_DIR, EMB_KEY, CLF_KEY, MODEL_NAME, DEVICE
+from config import (
+    CHECKPOINT_DIR,
+    CLASSIFIER_PATH,
+    MODEL_NAME,
+    DEVICE,
+    SCALER_PATH,
+)
 from typing import Tuple
 import logging
 
@@ -13,36 +19,37 @@ class GroomingDetector:
     def __init__(
         self,
         model_name=MODEL_NAME,
-        emb_key=EMB_KEY,
-        clf_key=CLF_KEY,
         checkpoint_dir=CHECKPOINT_DIR,
         device=DEVICE,
     ):
         logger.info(f"Loading SimCSE encoder: {model_name}  device={device}")
         self.encoder = SentenceTransformer(model_name, device=device)
 
-        safe_key = emb_key.replace(" ", "_").replace("/", "-")
-        clf_path = checkpoint_dir / f"clf_{safe_key}_{clf_key}.joblib"
-        logger.info(f"Loading classifier from: {clf_path}")
-        self._load_models(clf_path)
+        scaler_path = checkpoint_dir / SCALER_PATH
+        classifier_path = checkpoint_dir / CLASSIFIER_PATH
+        logger.info(f"Loading scaler from: {scaler_path}")
+        logger.info(f"Loading classifier from: {classifier_path}")
+        self._load_models(scaler_path, classifier_path)
 
-    def _load_models(self, clf_path: Path):
-        if not clf_path.exists():
+    def _load_models(self, classifier_path: Path, scaler_path: Path):
+        if not classifier_path.exists():
             raise FileNotFoundError(
-                f"Classifier checkpoint not found: {clf_path}\nRun the training pipeline first."
+                f"Classifier checkpoint not found: {classifier_path}\nRun the training pipeline first."
             )
 
-        bundle = joblib.load(clf_path)
-        self.scaler = bundle["scaler"]
-        self.clf = bundle["clf"]
+        if not scaler_path.exists():
+            raise FileNotFoundError(
+                f"Classifier checkpoint not found: {scaler_path}\nRun the training pipeline first."
+            )
+
+        self.scaler = joblib.load(scaler_path)
+        self.clf = joblib.load(classifier_path)
 
     # TODO: expand this to do batch inference later
     def predict(self, text: str) -> Tuple[int, float]:
         # NOTE: encoder accepts a list of string, allowing for batching
         emb = self.encoder.encode(
-            [text],
-            convert_to_numpy=True,
-            normalize_embeddings=False
+            [text], convert_to_numpy=True, normalize_embeddings=False
         )
         emb_s = self.scaler.transform(emb)
 
