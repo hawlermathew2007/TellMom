@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import queue
-import socket
 import threading
 import time
 from typing import Callable, Optional
@@ -20,8 +19,6 @@ from config import (
     BACKEND_WS_URL,
     RECONNECT_DELAY,
     QUEUE_MAXSIZE,
-    TCP_HOST,
-    TCP_PORT,
 )
 from model import GroomingDetector
 from utils import clean_text, utc_now_iso, log_section
@@ -141,7 +138,10 @@ class WSClientThread(threading.Thread):
 
     def send_json(self, payload: dict) -> None:
         if self._ws:
-            self._ws.send(json.dumps(payload))
+            try:
+                self._ws.send(json.dumps(payload))
+            except Exception as exc:
+                logger.error(f"[ws] Failed to send JSON payload: {exc}")
 
     def stop(self):
         self._stop_event.set()
@@ -194,7 +194,7 @@ class InferenceThread(threading.Thread):
         self,
         detector: GroomingDetector,
         inference_queue: queue.Queue,
-        result_callback: Optional[Callable[[tuple], None]] = None,
+        result_callback: Optional[Callable[[dict], None]] = None,
         response_sender: Optional[Callable[[dict], None]] = None,
     ):
         super().__init__(name="InferenceThread", daemon=True)
@@ -218,14 +218,25 @@ class InferenceThread(threading.Thread):
             try:
                 # Bypass the input if there's nothing inside
                 raw_text = item.get("content", "").strip()
+                request_id = item.get("request_id")
                 if len(raw_text) == 0:
                     continue
 
                 cleaned_text = clean_text(raw_text)
+                logger.info(f"Input text: {raw_text}")
                 result = self.detector.predict(text=cleaned_text)
 
                 if self.result_callback:
-                    self.result_callback(result)
+                    self.result_callback(
+                        {"has_pedo": bool(result[0]), "probability": result[1]}
+                    )
+
+                if self.response_sender:
+                    response_payload = {
+                        "request_id": request_id,
+                        "result": {"has_pedo": bool(result[0]), "probability": result[1]}
+                    }
+                    self.response_sender(response_payload)
 
             except Exception as exc:
                 logger.exception(f"[inference] Unhandled error: {exc}")
@@ -245,16 +256,6 @@ class InferencePipeline:
       2. GroomingDetector()        — load encoder + classifier
       3. WSClientThread.start()    — open WebSocket
       4. InferenceThread.start()   — begin consuming queue
-
-    Example
-    -------
-    >>> def on_result(result: dict):
-    ...     if result["is_predator"]:
-    ...         alert_moderation_team(result)
-    ...     store_result(result)
-    >>>
-    >>> pipeline = InferencePipeline(result_callback=on_result)
-    >>> pipeline.start()          # blocks until Ctrl-C
     """
 
     def __init__(
@@ -338,137 +339,6 @@ class InferencePipeline:
             and self._inf_thread is not None
             and self._inf_thread.is_alive()
         )
-
-
-class TCPServerThread(threading.Thread):
-    """
-    Listens for newline-delimited JSON requests from the backend.
-
-    Request:
-        {"content: "*"}
-
-    Response:
-        {"has_pedo": true, "probabilty": 0.6}
-    """
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        detector: GroomingDetector,
-    ):
-        super().__init__(name="TCPServerThread", daemon=True)
-        self.host = host
-        self.port = port
-        self.detector = detector
-        self._stop_event = threading.Event()
-        self._server_socket: Optional[socket.socket] = None
-
-    def stop(self):
-        self._stop_event.set()
-        if self._server_socket:
-            try:
-                self._server_socket.close()
-            except OSError:
-                pass
-
-    def _handle_client(self, conn: socket.socket) -> None:
-        with conn:
-            buffer = b""
-
-            # Continue adding chunks until stop indicator found
-            while b"\n" not in buffer:
-                chunk = conn.recv(4096)
-                if not chunk:
-                    return
-                buffer += chunk
-
-            # Only get before the stop indicator
-            request_line = buffer.split(b"\n", 1)[0]
-            try:
-                payload = json.loads(request_line.decode())
-            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-                logger.warning(f"[tcp] Invalid request payload: {exc}")
-                conn.sendall(b"[]\n")
-                return
-
-            content = payload.get("content")
-            if not content:
-                logger.warning(f"[tcp] Invalid payload format: {payload}")
-                return
-
-            cleaned = clean_text(content)
-            label, prob = self.detector.predict(cleaned)
-            result = {"has_pedo": bool(label), "probability": float(prob)}
-            conn.sendall((json.dumps(result) + "\n").encode())
-
-    def run(self):
-        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_socket.bind((self.host, self.port))
-        self._server_socket.listen()
-        logger.info(f"[tcp] Listening on {self.host}:{self.port}")
-
-        while not self._stop_event.is_set():
-            try:
-                self._server_socket.settimeout(1.0)
-                conn, addr = self._server_socket.accept()
-            except TimeoutError:
-                continue
-            except OSError:
-                if not self._stop_event.is_set():
-                    logger.exception("[tcp] Accept failed.")
-                break
-
-            logger.info(f"[tcp] Connection from {addr}")
-            threading.Thread(
-                target=self._handle_client,
-                args=(conn,),
-                daemon=True,
-            ).start()
-
-        logger.info("[tcp] TCPServerThread stopped.")
-
-
-class ClassifierTCPServer:
-    """Load the detector and serve per-user classifications over TCP."""
-
-    def __init__(
-        self,
-        host: str = TCP_HOST,
-        port: int = TCP_PORT,
-    ):
-        self._host = host
-        self._port = port
-        self._detector: Optional[GroomingDetector] = None
-        self._tcp_thread: Optional[TCPServerThread] = None
-
-    def start(self, block: bool = True) -> None:
-        log_section(logger, "Loading grooming detector")
-        self._detector = GroomingDetector()
-
-        log_section(logger, "Starting TCP classifier server")
-        self._tcp_thread = TCPServerThread(self._host, self._port, self._detector)
-        self._tcp_thread.start()
-        logger.info("Classifier TCP server running. Press Ctrl-C to stop.")
-
-        if block:
-            try:
-                while self.is_alive():
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                logger.info("\nKeyboardInterrupt received — shutting down.")
-            finally:
-                self.stop()
-
-    def stop(self) -> None:
-        if self._tcp_thread:
-            self._tcp_thread.stop()
-            self._tcp_thread.join(timeout=5)
-        logger.info("Classifier TCP server stopped.")
-
-    def is_alive(self) -> bool:
-        return self._tcp_thread is not None and self._tcp_thread.is_alive()
 
 
 if __name__ == "__main__":

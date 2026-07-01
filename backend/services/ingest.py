@@ -1,19 +1,23 @@
 import logging
 from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException
+from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from core import config
 from core.cache import flag_store
-from core.classifier_client import classifier_client
-from services.classifier_stream import classifier_stream
 from database.models import ChatMessage
 from schemas.flags import FlaggedConversation
-from services.explanation import get_or_generate_explanation
-from services.messages import add_message_db, notify_parents_in_chat, load_server_chat_group, count_server_messages
+# from services.explanation import get_or_generate_explanation
+from services.messages import (
+    add_message_db,
+    notify_parents_in_chat,
+    load_server_chat_group,
+    count_server_messages,
+)
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 async def process_ingest(
@@ -30,8 +34,9 @@ async def process_ingest(
 
     # Add message to db
     add_message_db(db, platform, server_id, user_id, message)
-
-    message_count = count_server_messages(db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS)
+    message_count = count_server_messages(
+        db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
+    )
 
     if message_count < config.CLASSIFIER_MIN_MESSAGES:
         return
@@ -51,19 +56,25 @@ async def process_ingest(
     raw = " ".join([m.content for m in db_messages])
 
     try:
-        if not classifier_stream.connected:
-            await classifier_client.ensure_connected()
-        result = await classifier_client.classify(raw)
-    except ConnectionError as exc:
+        await classifier_stream.ensure_connected()
+        result = await classifier_stream.classify(raw)
+    except ConnectionError as e:
+        logger.error(e)
         raise HTTPException(
             status_code=503,
-            detail="Classifier not connected. Retry later.",
-        ) from exc
+            detail=f"Classifier not connected. Retry later. {e}",
+        )
 
+    logger.warning(f"Classification result: {result.has_pedo}")
     if result.has_pedo:
-        chat_group = load_server_chat_group(db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS)
-        explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
-        explanation_payload = explanation.model_dump(mode="json") if explanation else None
+        chat_group = load_server_chat_group(
+            db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
+        )
+        # TODO: implement AI recommendation later
+        explanation = None
+        explanation_payload = None
+        # explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
+        # explanation_payload = explanation.model_dump(mode="json") if explanation else None
 
         flagged_messages = [m.content for m in db_messages]
         flag_key = f"{platform.value}:{server_id}"
