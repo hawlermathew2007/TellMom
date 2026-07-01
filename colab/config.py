@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-BACKEND_WS_URL = os.getenv("BACKEND_WS_URL", "ws://localhost:8000/learner_stream")
+BACKEND_WS_URL = os.getenv("BACKEND_WS_URL", "ws://localhost:8000/stream")
 BACKEND_PASSWORD = os.getenv("BACKEND_PASSWORD", "1234")
-TCP_HOST = "0.0.0.0"
-TCP_PORT = 9999
 
 CHECKIN_ENDPOINT = f"{BACKEND_BASE_URL}/checkin"
 CHECKIN_TIMEOUT_S = 10

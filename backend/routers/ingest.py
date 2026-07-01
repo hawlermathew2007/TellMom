@@ -52,7 +52,6 @@ async def classifier_checkin(
     )
 
 
-# TODO: rename this one
 @classifier_router.websocket("/stream")
 async def learner_stream(websocket: WebSocket) -> None:
     authorization_header = websocket.headers.get("authorization")

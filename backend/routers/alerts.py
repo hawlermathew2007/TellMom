@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from database.models import Alert, Parent
+from database.models import Alert, Parent, ChatMessage
 from database.session import SessionLocal, get_db
 from core.dependencies import get_current_parent
-from schemas.alerts import AlertResponse
+from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager
 
@@ -15,13 +15,28 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 def list_alerts(
     parent: Parent = Depends(get_current_parent),
     db: Session = Depends(get_db),
-) -> list[Alert]:
-    return (
+) -> list[AlertResponse]:
+    alerts = (
         db.query(Alert)
         .filter(Alert.parent_id == parent.id)
         .order_by(Alert.created_at.desc())
         .all()
     )
+    response = []
+    for alert in alerts:
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        alert_res = AlertResponse.model_validate(alert)
+        alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+        response.append(alert_res)
+    return response
 
 
 @router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
@@ -29,7 +44,7 @@ def acknowledge_alert(
     alert_id: int,
     parent: Parent = Depends(get_current_parent),
     db: Session = Depends(get_db),
-) -> Alert:
+) -> AlertResponse:
     alert = (
         db.query(Alert)
         .filter(Alert.id == alert_id, Alert.parent_id == parent.id)
@@ -41,7 +56,19 @@ def acknowledge_alert(
     alert.acknowledged = True
     db.commit()
     db.refresh(alert)
-    return alert
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == alert.platform,
+            ChatMessage.server_id == alert.server_id,
+        )
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    alert_res = AlertResponse.model_validate(alert)
+    alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+    return alert_res
 
 
 @router.websocket("/ws")

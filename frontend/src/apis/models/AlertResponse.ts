@@ -14,6 +14,13 @@
  */
 
 import { mapValues } from '../runtime';
+import type { GroomingAnalysis } from './GroomingAnalysis';
+import {
+    GroomingAnalysisFromJSON,
+    GroomingAnalysisFromJSONTyped,
+    GroomingAnalysisToJSON,
+    GroomingAnalysisToJSONTyped,
+} from './GroomingAnalysis';
 import type { ChatPlatform } from './ChatPlatform';
 import {
     ChatPlatformFromJSON,
@@ -42,12 +49,6 @@ export interface AlertResponse {
     childAccountId: number;
     /**
      * 
-     * @type {string}
-     * @memberof AlertResponse
-     */
-    flaggedUserId: string;
-    /**
-     * 
      * @type {ChatPlatform}
      * @memberof AlertResponse
      */
@@ -64,6 +65,12 @@ export interface AlertResponse {
      * @memberof AlertResponse
      */
     messagePreview: string;
+    /**
+     * 
+     * @type {GroomingAnalysis}
+     * @memberof AlertResponse
+     */
+    explanation?: GroomingAnalysis | null;
     /**
      * 
      * @type {boolean}
@@ -86,7 +93,6 @@ export interface AlertResponse {
 export function instanceOfAlertResponse(value: object): value is AlertResponse {
     if (!('id' in value) || value['id'] === undefined) return false;
     if ((!('childAccountId' in value) && !('child_account_id' in value)) || (value['childAccountId'] === undefined && value['child_account_id'] === undefined)) return false;
-    if ((!('flaggedUserId' in value) && !('flagged_user_id' in value)) || (value['flaggedUserId'] === undefined && value['flagged_user_id'] === undefined)) return false;
     if (!('platform' in value) || value['platform'] === undefined) return false;
     if ((!('serverId' in value) && !('server_id' in value)) || (value['serverId'] === undefined && value['server_id'] === undefined)) return false;
     if ((!('messagePreview' in value) && !('message_preview' in value)) || (value['messagePreview'] === undefined && value['message_preview'] === undefined)) return false;
@@ -107,10 +113,10 @@ export function AlertResponseFromJSONTyped(json: any, ignoreDiscriminator: boole
         
         'id': json['id'],
         'childAccountId': json['child_account_id'],
-        'flaggedUserId': json['flagged_user_id'],
         'platform': ChatPlatformFromJSON(json['platform']),
         'serverId': json['server_id'],
         'messagePreview': json['message_preview'],
+        'explanation': json['explanation'] == null ? undefined : GroomingAnalysisFromJSON(json['explanation']),
         'acknowledged': json['acknowledged'],
         'createdAt': (new Date(json['created_at'])),
     };
@@ -129,10 +135,10 @@ export function AlertResponseToJSONTyped(value?: AlertResponse | null, ignoreDis
         
         'id': value['id'],
         'child_account_id': value['childAccountId'],
-        'flagged_user_id': value['flaggedUserId'],
         'platform': ChatPlatformToJSON(value['platform']),
         'server_id': value['serverId'],
         'message_preview': value['messagePreview'],
+        'explanation': GroomingAnalysisToJSON(value['explanation']),
         'acknowledged': value['acknowledged'],
         'created_at': value['createdAt'].toISOString(),
     };

@@ -1,22 +1,23 @@
 import logging
+from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException
+from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from core import config
-from core.cache import message_cache
-from core.classifier_client import classifier_client
-from services.classifier_stream import classifier_stream
+from core.cache import flag_store
+from database.models import ChatMessage
 from schemas.flags import FlaggedConversation
-from services.explanation import get_or_generate_explanation
+# from services.explanation import get_or_generate_explanation
 from services.messages import (
     add_message_db,
     notify_parents_in_chat,
     load_server_chat_group,
+    count_server_messages,
 )
 
-flag_store: dict[str, FlaggedConversation] = {}
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 async def process_ingest(
@@ -31,39 +32,51 @@ async def process_ingest(
     if all pre-defined requirements are met.
     """
 
-    # Add message to cache / db
-    message_cache.add(platform, server_id, user_id, message)
+    # Add message to db
     add_message_db(db, platform, server_id, user_id, message)
-
-    message_count = message_cache.count_server_messages(platform, server_id)
+    message_count = count_server_messages(
+        db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
+    )
 
     if message_count < config.CLASSIFIER_MIN_MESSAGES:
         return
 
-    messages = message_cache.get_server_entries(platform, server_id)
-    raw = " ".join([m.message for m in messages])
+    # Load messages of conversation from DB within the TTL timeframe
+    since = datetime.now(UTC) - timedelta(hours=config.MESSAGE_CACHE_TTL_HOURS)
+    db_messages = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
+            ChatMessage.created_at >= since,
+        )
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    raw = " ".join([m.content for m in db_messages])
 
     try:
-        if not classifier_stream.connected:
-            await classifier_client.ensure_connected()
-        result = await classifier_client.classify(raw)
-    except ConnectionError as exc:
+        await classifier_stream.ensure_connected()
+        result = await classifier_stream.classify(raw)
+    except ConnectionError as e:
+        logger.error(e)
         raise HTTPException(
             status_code=503,
-            detail="Classifier not connected. Retry later.",
-        ) from exc
+            detail=f"Classifier not connected. Retry later. {e}",
+        )
 
+    logger.warning(f"Classification result: {result.has_pedo}")
     if result.has_pedo:
         chat_group = load_server_chat_group(
             db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
         )
-        # TODO: add the AI explanation later
-        # explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
-        # explanation_payload = explanation.model_dump(mode="json") if explanation else None
+        # TODO: implement AI recommendation later
         explanation = None
         explanation_payload = None
+        # explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
+        # explanation_payload = explanation.model_dump(mode="json") if explanation else None
 
-        flagged_messages = [m.message for m in messages]
+        flagged_messages = [m.content for m in db_messages]
         flag_key = f"{platform.value}:{server_id}"
         flag_store[flag_key] = FlaggedConversation(
             platform=platform.value,
@@ -74,10 +87,10 @@ async def process_ingest(
         )
 
         await notify_parents_in_chat(
-            db=db,
-            platform=platform,
-            server_id=server_id,
-            chat_group=chat_group,
-            flagged_messages=flagged_messages,
-            explanation=explanation_payload,
+            db,
+            platform,
+            server_id,
+            chat_group,
+            flagged_messages,
+            explanation_payload,
         )
