@@ -4,7 +4,7 @@ from fastapi import (
     Header,
     HTTPException,
     WebSocket,
-    WebSocketDisconnect
+    WebSocketDisconnect,
 )
 from sqlalchemy.orm import Session
 
@@ -42,14 +42,10 @@ async def classifier_checkin(
     _: ClassifierCheckInRequest,
     x_password: str | None = Header(default=None, alias="X-Password"),
 ) -> ClassifierCheckInResponse:
-    if not x_password and x_password != config.CLASSIFIER_PASSWORD:
+    if x_password != config.CLASSIFIER_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid classifier password")
-
     token = create_stream_token()
-
-    return ClassifierCheckInResponse(
-        token=token,
-    )
+    return ClassifierCheckInResponse(token=token)
 
 
 @classifier_router.websocket("/stream")
