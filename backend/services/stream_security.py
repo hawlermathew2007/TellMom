@@ -10,8 +10,8 @@ def create_stream_token() -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "scope": "classifier:stream",
-        "created_time": now,
-        "expiry_time": now + timedelta(hours=config.CLASSIFIER_JWT_EXPIRE_HOURS),
+        "iat": now,
+        "exp": now + timedelta(hours=config.CLASSIFIER_JWT_EXPIRE_HOURS),
     }
     return jwt.encode(payload, config.CLASSIFIER_JWT_SECRET, algorithm=ALGORITHM)
 
