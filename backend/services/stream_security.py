@@ -1,9 +1,9 @@
+import jwt
 from datetime import datetime, timedelta, timezone
-import jwt  # pip install pyjwt
 from fastapi import HTTPException
 from core import config
 
-ALGORITHM = config.CLASSIFIER_JWT_ALGORITHM
+ALGORITHM = config.JWT_ALGORITHM
 
 
 def create_stream_token() -> str:
