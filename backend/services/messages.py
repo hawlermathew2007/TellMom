@@ -8,7 +8,7 @@ from schemas.alerts import AlertResponse
 from services.notifications import alert_manager
 
 
-def persist_chat_message(
+def add_message_db(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
@@ -74,7 +74,6 @@ async def notify_parents_in_chat(
     platform: ChatPlatform,
     server_id: str,
     chat_group: dict[str, list[str]],
-    flagged_user_id: str,
     flagged_messages: list[str],
     explanation: dict | None = None,
 ) -> None:
@@ -98,7 +97,6 @@ async def notify_parents_in_chat(
         alert = Alert(
             parent_id=child.parent_id,
             child_account_id=child.id,
-            flagged_user_id=flagged_user_id,
             platform=platform,
             server_id=server_id,
             message_preview=preview[:500],

@@ -26,32 +26,16 @@ class ClassifierClient:
                 f"{config.COLAB_TCP_HOST}:{config.COLAB_TCP_PORT}"
             ) from exc
 
-    async def classify(
-        self,
-        platform: str,
-        server_id: str,
-        chat_group: dict[str, list[str]],
-    ) -> list[ClassifierResult]:
+    async def classify(self, raw: str) -> ClassifierResult:
         async with self._queue_lock:
-            return await self._classify_unlocked(platform, server_id, chat_group)
+            return await self._classify_unlocked(raw)
 
-    async def _classify_unlocked(
-        self,
-        platform: str,
-        server_id: str,
-        chat_group: dict[str, list[str]],
-    ) -> list[ClassifierResult]:
+    async def _classify_unlocked(self, raw: str) -> ClassifierResult:
         if not self.connected or self._reader is None or self._writer is None:
             raise RuntimeError("Classifier not connected")
 
         try:
-            payload = json.dumps(
-                {
-                    "platform": platform,
-                    "server_id": server_id,
-                    "chat_group": chat_group,
-                }
-            ) + "\n"
+            payload = json.dumps({"content": raw}) + "\n"
             self._writer.write(payload.encode())
             await self._writer.drain()
 
@@ -60,8 +44,9 @@ class ClassifierClient:
                 self.connected = False
                 raise ConnectionError("Classifier connection closed")
 
-            raw_results = json.loads(response_line.decode())
-            return [ClassifierResult.model_validate(item) for item in raw_results]
+            result = json.loads(response_line.decode())
+            return ClassifierResult.model_validate(result)
+
         except (OSError, ConnectionError, asyncio.IncompleteReadError) as exc:
             self.connected = False
             raise exc

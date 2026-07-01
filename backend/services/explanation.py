@@ -20,19 +20,16 @@ GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 def _format_conversation(
     platform: str,
     server_id: str,
-    flagged_user_id: str,
     chat_group: dict[str, list[str]],
 ) -> str:
     lines = [
         f"Platform: {platform}",
         f"Server ID: {server_id}",
-        f"Flagged user ID: {flagged_user_id}",
         "",
         "Conversation:",
     ]
     for user_id, messages in chat_group.items():
-        marker = " (flagged user)" if user_id == flagged_user_id else ""
-        lines.append(f"\nUser {user_id}{marker}:")
+        lines.append(f"\nUser {user_id}:")
         for message in messages:
             lines.append(f"  - {message}")
     return "\n".join(lines)
@@ -49,13 +46,13 @@ def _extract_json(raw: str) -> dict:
 def _lookup_db(
     db: Session,
     platform: ChatPlatform,
-    platform_user_id: str,
+    server_id: str,
 ) -> GroomingAnalysis | None:
     row = (
         db.query(FlagExplanation)
         .filter(
             FlagExplanation.platform == platform,
-            FlagExplanation.platform_user_id == platform_user_id,
+            FlagExplanation.server_id == server_id,
         )
         .first()
     )
@@ -67,9 +64,9 @@ def _lookup_db(
 def lookup_explanation_payload(
     db: Session,
     platform: ChatPlatform,
-    platform_user_id: str,
+    server_id: str,
 ) -> dict | None:
-    analysis = _lookup_db(db, platform, platform_user_id)
+    analysis = _lookup_db(db, platform, server_id)
     if analysis is None:
         return None
     return analysis.model_dump(mode="json")
@@ -78,14 +75,14 @@ def lookup_explanation_payload(
 def _save_db(
     db: Session,
     platform: ChatPlatform,
-    platform_user_id: str,
+    server_id: str,
     analysis: GroomingAnalysis,
 ) -> None:
     existing = (
         db.query(FlagExplanation)
         .filter(
             FlagExplanation.platform == platform,
-            FlagExplanation.platform_user_id == platform_user_id,
+            FlagExplanation.server_id == server_id,
         )
         .first()
     )
@@ -96,7 +93,7 @@ def _save_db(
         db.add(
             FlagExplanation(
                 platform=platform,
-                platform_user_id=platform_user_id,
+                server_id=server_id,
                 explanation=payload,
             )
         )
@@ -106,13 +103,12 @@ def _save_db(
 async def _call_groq(
     platform: str,
     server_id: str,
-    flagged_user_id: str,
     chat_group: dict[str, list[str]],
 ) -> GroomingAnalysis:
     if not config.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not configured")
 
-    conversation = _format_conversation(platform, server_id, flagged_user_id, chat_group)
+    conversation = _format_conversation(platform, server_id, chat_group)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
@@ -142,17 +138,16 @@ async def _call_groq(
 async def get_or_generate_explanation(
     db: Session,
     platform: ChatPlatform,
-    flagged_user_id: str,
     server_id: str,
     chat_group: dict[str, list[str]],
 ) -> GroomingAnalysis | None:
-    cache_key = (platform.value, flagged_user_id)
+    cache_key = (platform.value, server_id)
 
     cached = explanation_cache.get(cache_key)
     if cached is not None:
         return cached
 
-    db_cached = _lookup_db(db, platform, flagged_user_id)
+    db_cached = _lookup_db(db, platform, server_id)
     if db_cached is not None:
         explanation_cache.set(cache_key, db_cached)
         return db_cached
@@ -161,17 +156,16 @@ async def get_or_generate_explanation(
         analysis = await _call_groq(
             platform.value,
             server_id,
-            flagged_user_id,
             chat_group,
         )
     except Exception:
         logger.exception(
-            "Failed to generate grooming explanation for %s on %s",
-            flagged_user_id,
+            "Failed to generate grooming explanation for server %s on %s",
+            server_id,
             platform.value,
         )
         return None
 
     explanation_cache.set(cache_key, analysis)
-    _save_db(db, platform, flagged_user_id, analysis)
+    _save_db(db, platform, server_id, analysis)
     return analysis

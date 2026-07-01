@@ -77,7 +77,6 @@ class Alert(Base):
     child_account_id: Mapped[int] = mapped_column(
         ForeignKey("child_accounts.id", ondelete="CASCADE")
     )
-    flagged_user_id: Mapped[str] = mapped_column(String(255))
     platform: Mapped[ChatPlatform] = mapped_column(
         SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
     )
@@ -96,14 +95,14 @@ class Alert(Base):
 class FlagExplanation(Base):
     __tablename__ = "flag_explanations"
     __table_args__ = (
-        UniqueConstraint("platform", "platform_user_id", name="uq_flag_explanation_user"),
+        UniqueConstraint("platform", "server_id", name="uq_flag_explanation_server"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     platform: Mapped[ChatPlatform] = mapped_column(
         SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
     )
-    platform_user_id: Mapped[str] = mapped_column(String(255), index=True)
+    server_id: Mapped[str] = mapped_column(String(255), index=True)
     explanation: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
