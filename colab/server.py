@@ -120,16 +120,21 @@ class WSClientThread(threading.Thread):
     def __init__(
         self,
         url: str,
-        password: str,
+        token: str,
         inference_queue: queue.Queue,
     ):
         super().__init__(name="WSClientThread", daemon=True)
         # TODO: change this to authorization header
-        self.url = f"{url}?token={password}"
+        self.url = url
+        self.header = [
+            f"Authorization: Bearer {token}"
+            "Content-Type: application/json",
+        ],
         self.inference_queue = inference_queue
         self._stop_event = threading.Event()
         self._ws = websocket.WebSocketApp(
             self.url,
+            header=self.header,
             on_open=self._on_open,
             on_message=self._on_message,
             on_error=self._on_error,
@@ -273,7 +278,7 @@ class InferencePipeline:
         self._checkin_endpoint = checkin_endpoint
 
         self._queue = queue.Queue(maxsize=self._queue_maxsize)
-        self._ws_thread = WSClientThread(self._ws_url, self._password, self._queue)
+        self.ws_thread = WSClientThread(self._ws_url, self._queue)
 
         self._detector: Optional[GroomingDetector] = None
         self._inf_thread: Optional[InferenceThread] = None
@@ -295,6 +300,9 @@ class InferencePipeline:
         )
         logger.info(f"Server acknowledged: {server_info}")
 
+        token = server_info["token"]
+        self.ws_thread.token = token
+
         # Load detector
         log_section(logger, "Loading grooming detector")
         self._detector = GroomingDetector()
@@ -309,7 +317,7 @@ class InferencePipeline:
         )
 
         self._inf_thread.start()
-        self._ws_thread.start()
+        self.ws_thread.start()
         logger.info("Pipeline running. Press Ctrl-C to stop.")
 
         if block:
