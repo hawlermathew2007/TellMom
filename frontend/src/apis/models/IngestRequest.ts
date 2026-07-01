@@ -14,6 +14,14 @@
  */
 
 import { mapValues } from '../runtime';
+import type { ChatPlatform } from './ChatPlatform';
+import {
+    ChatPlatformFromJSON,
+    ChatPlatformFromJSONTyped,
+    ChatPlatformToJSON,
+    ChatPlatformToJSONTyped,
+} from './ChatPlatform';
+
 /**
  * 
  * @export
@@ -22,10 +30,16 @@ import { mapValues } from '../runtime';
 export interface IngestRequest {
     /**
      * 
+     * @type {ChatPlatform}
+     * @memberof IngestRequest
+     */
+    platform: ChatPlatform;
+    /**
+     * 
      * @type {string}
      * @memberof IngestRequest
      */
-    platform: string;
+    userId: string;
     /**
      * 
      * @type {string}
@@ -34,19 +48,22 @@ export interface IngestRequest {
     serverId: string;
     /**
      * 
-     * @type {{ [key: string]: Array<string>; }}
+     * @type {string}
      * @memberof IngestRequest
      */
-    chatGroup: { [key: string]: Array<string>; };
+    message: string;
 }
+
+
 
 /**
  * Check if a given object implements the IngestRequest interface.
  */
 export function instanceOfIngestRequest(value: object): value is IngestRequest {
     if (!('platform' in value) || value['platform'] === undefined) return false;
+    if ((!('userId' in value) && !('user_id' in value)) || (value['userId'] === undefined && value['user_id'] === undefined)) return false;
     if ((!('serverId' in value) && !('server_id' in value)) || (value['serverId'] === undefined && value['server_id'] === undefined)) return false;
-    if ((!('chatGroup' in value) && !('chat_group' in value)) || (value['chatGroup'] === undefined && value['chat_group'] === undefined)) return false;
+    if (!('message' in value) || value['message'] === undefined) return false;
     return true;
 }
 
@@ -60,9 +77,10 @@ export function IngestRequestFromJSONTyped(json: any, ignoreDiscriminator: boole
     }
     return {
         
-        'platform': json['platform'],
+        'platform': ChatPlatformFromJSON(json['platform']),
+        'userId': json['user_id'],
         'serverId': json['server_id'],
-        'chatGroup': json['chat_group'],
+        'message': json['message'],
     };
 }
 
@@ -77,9 +95,10 @@ export function IngestRequestToJSONTyped(value?: IngestRequest | null, ignoreDis
 
     return {
         
-        'platform': value['platform'],
+        'platform': ChatPlatformToJSON(value['platform']),
+        'user_id': value['userId'],
         'server_id': value['serverId'],
-        'chat_group': value['chatGroup'],
+        'message': value['message'],
     };
 }
 

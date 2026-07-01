@@ -6,9 +6,10 @@
 
 Name | Type
 ------------ | -------------
-`platform` | string
+`platform` | [ChatPlatform](ChatPlatform.md)
+`userId` | string
 `serverId` | string
-`chatGroup` | { [key: string]: Array&lt;string&gt;; }
+`message` | string
 
 ## Example
 
@@ -18,8 +19,9 @@ import type { IngestRequest } from ''
 // TODO: Update the object below with actual values
 const example = {
   "platform": null,
+  "userId": null,
   "serverId": null,
-  "chatGroup": null,
+  "message": null,
 } satisfies IngestRequest
 
 console.log(example)
