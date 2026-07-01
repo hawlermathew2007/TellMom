@@ -19,6 +19,7 @@ class ClassifierCheckInRequest(BaseModel):
 class ClassifierCheckInResponse(BaseModel):
     status: Literal["ok"] = "ok"
     message: str = "Classifier registered"
+    token: str
 
 
 class ClassifierResultItem(BaseModel):
