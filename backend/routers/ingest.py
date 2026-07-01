@@ -39,9 +39,8 @@ async def classifier_checkin(
     return ClassifierCheckInResponse()
 
 
-# TODO: rename this one
 @classifier_router.websocket("/stream")
-async def learner_stream(websocket: WebSocket) -> None:
+async def stream(websocket: WebSocket) -> None:
     token = websocket.query_params.get("token")
     if token != config.CLASSIFIER_PASSWORD:
         await websocket.close(code=4401)

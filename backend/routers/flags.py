@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 
 from schemas.flags import FlaggedConversation
-from services.ingest import flag_store
+from core.cache import flag_store
 
 router = APIRouter()
 
