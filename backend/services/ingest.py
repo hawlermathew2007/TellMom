@@ -1,135 +1,96 @@
+import logging
+from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException
+from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from core import config
-from adapters.discord import DiscordAdapter
-from adapters.minecraft import MinecraftAdapter
-from core.cache import message_cache
-from core.classifier_client import classifier_client
-from database.models import ChildAccount
-from schemas.flags import FlaggedUser
-from schemas.ingest import IngestResponse
-from services.explanation import get_or_generate_explanation
-from services.messages import notify_parents_in_chat, persist_chat_messages
+from core.cache import flag_store
+from database.models import ChatMessage
+from schemas.flags import FlaggedConversation
+# from services.explanation import get_or_generate_explanation
+from services.messages import (
+    add_message_db,
+    notify_parents_in_chat,
+    load_server_chat_group,
+    count_server_messages,
+)
 
-ADAPTER_MAP = {
-    ChatPlatform.DISCORD: DiscordAdapter,
-    ChatPlatform.MINECRAFT: MinecraftAdapter,
-}
-
-flag_store: dict[str, FlaggedUser] = {}
+logger = logging.getLogger(__name__)
 
 
 async def process_ingest(
     db: Session,
-    platform: str,
+    platform: ChatPlatform,
     user_id: str,
     server_id: str,
     message: str,
-) -> IngestResponse:
-    try:
-        platform_enum = ChatPlatform(platform)
-    except ValueError as exc:
-        raise ValueError(f"Unknown platform: {platform}") from exc
+) -> None:
+    """
+    Store ingest into cache and db then perform classification
+    if all pre-defined requirements are met.
+    """
 
-    message_cache.add(platform, server_id, user_id, message)
-    persist_chat_message(db, platform_enum, server_id, user_id, message)
-
+    # Add message to db
+    add_message_db(db, platform, server_id, user_id, message)
     message_count = count_server_messages(
-        db,
-        platform_enum,
-        server_id,
-        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
+        db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
     )
 
     if message_count < config.CLASSIFIER_MIN_MESSAGES:
-        return IngestResponse(
-            status="below_threshold",
-            message_count=message_count,
-            classified_count=0,
-            newly_flagged=[],
-            parents_notified=0,
-        )
+        return
 
-    chat_group = load_server_chat_group(
-        db,
-        platform_enum,
-        server_id,
-        max_age_hours=config.MESSAGE_CACHE_TTL_HOURS,
+    # Load messages of conversation from DB within the TTL timeframe
+    since = datetime.now(UTC) - timedelta(hours=config.MESSAGE_CACHE_TTL_HOURS)
+    db_messages = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
+            ChatMessage.created_at >= since,
+        )
+        .order_by(ChatMessage.created_at.asc())
+        .all()
     )
+    raw = " ".join([m.content for m in db_messages])
 
     try:
-        await classifier_client.ensure_connected()
-    except ConnectionError as exc:
+        await classifier_stream.ensure_connected()
+        result = await classifier_stream.classify(raw)
+    except ConnectionError as e:
+        logger.error(e)
         raise HTTPException(
             status_code=503,
-            detail="Classifier not connected. Retry later.",
-        ) from exc
-
-    if not classifier_client.connected:
-        raise HTTPException(
-            status_code=503,
-            detail="Classifier not connected. Retry later.",
+            detail=f"Classifier not connected. Retry later. {e}",
         )
 
-    try:
-        results = await classifier_client.classify(platform, server_id, chat_group)
-    except ConnectionError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Classifier not connected. Retry later.",
-        ) from exc
+    logger.warning(f"Classification result: {result.has_pedo}")
+    if result.has_pedo:
+        chat_group = load_server_chat_group(
+            db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
+        )
+        # TODO: implement AI recommendation later
+        explanation = None
+        explanation_payload = None
+        # explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
+        # explanation_payload = explanation.model_dump(mode="json") if explanation else None
 
-    newly_flagged: list[str] = []
-    parents_notified = 0
+        flagged_messages = [m.content for m in db_messages]
+        flag_key = f"{platform.value}:{server_id}"
+        flag_store[flag_key] = FlaggedConversation(
+            platform=platform.value,
+            server_id=server_id,
+            flagged_chats=flagged_messages,
+            resolved=False,
+            explanation=explanation,
+        )
 
-    for result in results:
-        if result.is_pedo:
-            flagged_messages = chat_group.get(result.user_id, [])
-            explanation = await get_or_generate_explanation(
-                db,
-                platform_enum,
-                result.user_id,
-                server_id,
-                chat_group,
-            )
-            explanation_payload = (
-                explanation.model_dump(mode="json") if explanation is not None else None
-            )
-            flag_store[result.user_id] = FlaggedUser(
-                user_id=result.user_id,
-                server_id=server_id,
-                platform=platform,
-                flagged_chats=flagged_messages,
-                resolved=False,
-                explanation=explanation,
-            )
-            newly_flagged.append(result.user_id)
-
-            children_before = (
-                db.query(ChildAccount)
-                .filter(
-                    ChildAccount.platform == platform_enum,
-                    ChildAccount.platform_user_id.in_(set(chat_group.keys())),
-                )
-                .count()
-            )
-            await notify_parents_in_chat(
-                db,
-                platform_enum,
-                server_id,
-                chat_group,
-                result.user_id,
-                flagged_messages,
-                explanation_payload,
-            )
-            parents_notified += children_before
-
-    return IngestResponse(
-        status="classified",
-        message_count=message_count,
-        classified_count=len(results),
-        newly_flagged=newly_flagged,
-        parents_notified=parents_notified,
-    )
+        await notify_parents_in_chat(
+            db,
+            platform,
+            server_id,
+            chat_group,
+            flagged_messages,
+            explanation_payload,
+        )

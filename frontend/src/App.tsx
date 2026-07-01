@@ -192,7 +192,7 @@ export default function App() {
 
       {liveAlert && (
         <div className="banner">
-          <strong>Live alert:</strong> flagged user {liveAlert.flaggedUserId} in{" "}
+          <strong>Live alert:</strong> flagged conversation in{" "}
           {liveAlert.platform} server {liveAlert.serverId}
           <button onClick={() => acknowledgeAlert(liveAlert.id)}>Acknowledge</button>
         </div>
@@ -250,7 +250,6 @@ export default function App() {
                   <div>
                     <strong>{alert.platform}</strong> / server {alert.serverId}
                   </div>
-                  <div>Flagged: {alert.flaggedUserId}</div>
                   <div>{alert.messagePreview}</div>
                 </div>
                 <div className="alert-actions">
