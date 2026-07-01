@@ -9,7 +9,6 @@ from schemas.grooming import GroomingAnalysis
 class AlertResponse(BaseModel):
     id: int
     child_account_id: int
-    flagged_user_id: str
     platform: ChatPlatform
     server_id: str
     message_preview: str

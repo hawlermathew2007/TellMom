@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from adapters.base import ChatPlatform
 from core import config
 from schemas.grooming import GroomingAnalysis
 
 
 @dataclass
 class CachedMessage:
-    platform: str
+    platform: ChatPlatform
     server_id: str
     user_id: str
     message: str
@@ -15,6 +16,11 @@ class CachedMessage:
 
 
 class MessageCache:
+    """
+    Store message with context metadata and expire them accordingly using custom
+    implementation since simple ttl list expire whole key content.
+    """
+
     def __init__(self, ttl_hours: int | None = None) -> None:
         self._ttl = timedelta(hours=ttl_hours or config.MESSAGE_CACHE_TTL_HOURS)
         self._entries: list[CachedMessage] = []
@@ -23,7 +29,9 @@ class MessageCache:
         cutoff = datetime.now(UTC) - self._ttl
         self._entries = [entry for entry in self._entries if entry.created_at >= cutoff]
 
-    def add(self, platform: str, server_id: str, user_id: str, message: str) -> None:
+    def add(
+        self, platform: ChatPlatform, server_id: str, user_id: str, message: str
+    ) -> None:
         self._purge_expired()
         self._entries.append(
             CachedMessage(
@@ -35,7 +43,10 @@ class MessageCache:
             )
         )
 
-    def _server_entries(self, platform: str, server_id: str) -> list[CachedMessage]:
+    def get_server_entries(
+        self, platform: ChatPlatform, server_id: str
+    ) -> list[CachedMessage]:
+        """Get all latest chat messages of server group."""
         self._purge_expired()
         return [
             entry
@@ -43,17 +54,8 @@ class MessageCache:
             if entry.platform == platform and entry.server_id == server_id
         ]
 
-    def count_server_messages(self, platform: str, server_id: str) -> int:
-        return len(self._server_entries(platform, server_id))
-
-    def load_server_chat_group(self, platform: str, server_id: str) -> dict[str, list[str]]:
-        chat_group: dict[str, list[str]] = {}
-        for entry in self._server_entries(platform, server_id):
-            chat_group.setdefault(entry.user_id, []).append(entry.message)
-        return chat_group
-
-
-message_cache = MessageCache()
+    def count_server_messages(self, platform: ChatPlatform, server_id: str) -> int:
+        return len(self.get_server_entries(platform, server_id))
 
 
 class ExplanationCache:
@@ -67,4 +69,5 @@ class ExplanationCache:
         self._entries[key] = analysis
 
 
+message_cache = MessageCache()
 explanation_cache = ExplanationCache()

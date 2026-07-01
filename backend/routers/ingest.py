@@ -7,7 +7,6 @@ from schemas.ingest import (
     ClassifierCheckInRequest,
     ClassifierCheckInResponse,
     IngestRequest,
-    IngestResponse,
 )
 from services.classifier_stream import classifier_stream
 from services.ingest import process_ingest
@@ -16,10 +15,10 @@ router = APIRouter()
 classifier_router = APIRouter(tags=["classifier"])
 
 
-@router.post("/ingest", response_model=IngestResponse)
-async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> IngestResponse:
+@router.post("/ingest", status_code=204)
+async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> None:
     try:
-        return await process_ingest(
+        await process_ingest(
             db,
             request.platform,
             request.user_id,
@@ -32,7 +31,7 @@ async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> Inges
 
 @classifier_router.post("/checkin", response_model=ClassifierCheckInResponse)
 async def classifier_checkin(
-    body: ClassifierCheckInRequest,
+    _: ClassifierCheckInRequest,
     x_password: str | None = Header(default=None, alias="X-Password"),
 ) -> ClassifierCheckInResponse:
     if x_password != config.CLASSIFIER_PASSWORD:
@@ -40,7 +39,8 @@ async def classifier_checkin(
     return ClassifierCheckInResponse()
 
 
-@classifier_router.websocket("/learner_stream")
+# TODO: rename this one
+@classifier_router.websocket("/stream")
 async def learner_stream(websocket: WebSocket) -> None:
     token = websocket.query_params.get("token")
     if token != config.CLASSIFIER_PASSWORD:
