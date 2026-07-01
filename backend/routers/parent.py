@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from services.ingest import flag_store
+from core.cache import flag_store
 
 router = APIRouter()
 

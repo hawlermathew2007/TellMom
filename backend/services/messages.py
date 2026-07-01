@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from database.models import Alert, ChatMessage, ChildAccount
-from schemas.alerts import AlertResponse
+from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.notifications import alert_manager
 
 
@@ -110,6 +110,18 @@ async def notify_parents_in_chat(
 
     for alert in created_alerts:
         db.refresh(alert)
-        payload = AlertResponse.model_validate(alert).model_dump(mode="json")
+        # Fetch conversation messages to link them together
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        alert_res = AlertResponse.model_validate(alert)
+        alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+        payload = alert_res.model_dump(mode="json")
         payload["type"] = "alert"
         await alert_manager.notify_parent(alert.parent_id, payload)
