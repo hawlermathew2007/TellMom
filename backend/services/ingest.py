@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from core import config
 from core.cache import flag_store
 from database.models import ChatMessage

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from database.models import Alert, ChatMessage, ChildAccount
 from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.notifications import alert_manager
