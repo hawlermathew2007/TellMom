@@ -14,7 +14,8 @@ CHECKPOINT_DIR = Path("checkpoints")
 SCALER_PATH = "scaler_simcse_base_roberta.joblib"
 CLASSIFIER_PATH = "svm_simcse_base_roberta.joblib"
 MODEL_NAME = "princeton-nlp/sup-simcse-roberta-base"
-DEVICE = "cuda"
+import torch
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 QUEUE_MAXSIZE = 512
 RECONNECT_DELAY = 5

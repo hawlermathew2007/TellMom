@@ -1,6 +1,11 @@
-# ChatGuard Roblox plugin (Roblox chat adaptor)
+# ChatGuard Roblox plugin (Roblox chat adapter)
 
 A Roblox Studio plugin for intercepting messages detect whether they are safe, appropriate. This adaptor contains the Roblox-side code and project layout used to build and serve the place with Rojo.
+
+# How to use this plugin
+
+1. Install the plugin from the Roblox Marketplace.
+2. Click the "ChatGuard init" button to generate the ChatGuard SDK.
 
 ## Prerequisites
 

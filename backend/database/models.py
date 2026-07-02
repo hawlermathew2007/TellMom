@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from database.session import Base
 
 

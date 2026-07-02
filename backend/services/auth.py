@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from jose import JWTError, jwt
@@ -17,7 +17,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(parent_id: int) -> str:
-    expire = datetime.now(UTC) + timedelta(minutes=config.JWT_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=config.JWT_EXPIRE_MINUTES)
     payload = {"sub": str(parent_id), "exp": expire}
     return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 

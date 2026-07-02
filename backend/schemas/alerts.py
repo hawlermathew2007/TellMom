@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from schemas.grooming import GroomingAnalysis
 
 
