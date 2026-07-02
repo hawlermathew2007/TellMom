@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from schemas.grooming import GroomingAnalysis
+# from schemas.grooming import GroomingAnalysis
 
 
 class FlaggedConversation(BaseModel):
@@ -7,4 +7,4 @@ class FlaggedConversation(BaseModel):
     server_id: str
     flagged_chats: list[str]
     resolved: bool
-    explanation: GroomingAnalysis | None = None
+    # explanation: GroomingAnalysis | None = None
