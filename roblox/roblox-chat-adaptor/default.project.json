@@ -3,22 +3,28 @@
   "tree": {
     "$className": "DataModel",
     
+    "ServerStorage": {
+      "ChatGuard": {
+        "$path": "src"
+      }
+    },
+
     "ReplicatedStorage": {
       "ChatGuard": {
-        "$path": "src/ReplicatedStorage"
+        "$path": "src/Template/ReplicatedStorage"
       }
     },
 
     "ServerScriptService": {
       "ChatGuard": {
-        "$path": "src/ServerScriptService"
+        "$path": "src/Template/ServerScriptService"
       }
     },
 
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "ChatGuard": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts"
+          "$path": "src/Template/StarterPlayer/StarterPlayerScripts"
         }
       }
     },
