@@ -75,6 +75,7 @@ async def notify_parents_in_chat(
     server_id: str,
     chat_group: dict[str, list[str]],
     preview: str,
+    probability: float,
 ) -> None:
     participant_ids = set(chat_group.keys())
     children = (
@@ -91,13 +92,31 @@ async def notify_parents_in_chat(
     parent_ids: set[int] = set()
     created_alerts: list[Alert] = []
 
+    # Check for recent alerts to avoid duplicates
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent_alerts = (
+        db.query(Alert)
+        .filter(
+            Alert.platform == platform,
+            Alert.server_id == server_id,
+            Alert.created_at >= since,
+        )
+        .all()
+    )
+    recent_child_ids = {alert.child_account_id for alert in recent_alerts}
+
     for child in children:
+        # Skip if alert already exists for this child in this server within past hour
+        if child.id in recent_child_ids:
+            continue
+
         alert = Alert(
             parent_id=child.parent_id,
             child_account_id=child.id,
             platform=platform,
             server_id=server_id,
             message_preview=preview[:500],
+            probability=probability,
         )
         db.add(alert)
         created_alerts.append(alert)

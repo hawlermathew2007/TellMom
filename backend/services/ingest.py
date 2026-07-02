@@ -64,8 +64,7 @@ async def process_ingest(
             detail=f"Classifier not connected. Retry later. {e}",
         )
 
-    # TODO: add the classification probability from SVM
-    logger.warning(f"Classification result: {result.has_pedo}")
+    logger.warning(f"Classification result: {result.has_pedo} (probability: {result.probability})")
     if result.has_pedo:
         chat_group = load_server_chat_group(
             db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
@@ -82,4 +81,5 @@ async def process_ingest(
             server_id,
             chat_group,
             preview,
+            result.probability,
         )

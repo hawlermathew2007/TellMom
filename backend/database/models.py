@@ -82,6 +82,7 @@ class Alert(Base):
     )
     server_id: Mapped[str] = mapped_column(String(255))
     message_preview: Mapped[str] = mapped_column(Text)
+    probability: Mapped[float] = mapped_column(nullable=False, default=0.0)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

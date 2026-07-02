@@ -17,6 +17,7 @@ class AlertResponse(BaseModel):
     platform: ChatPlatform
     server_id: str
     message_preview: str
+    probability: float
     acknowledged: bool
     created_at: datetime
     messages: list[ChatMessageResponse] = []
