@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
@@ -42,7 +42,7 @@ async def process_ingest(
         return
 
     # Load messages of conversation from DB within the TTL timeframe
-    since = datetime.now(UTC) - timedelta(hours=config.MESSAGE_CACHE_TTL_HOURS)
+    since = datetime.now(timezone.utc) - timedelta(hours=config.MESSAGE_CACHE_TTL_HOURS)
     db_messages = (
         db.query(ChatMessage)
         .filter(
