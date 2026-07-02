@@ -10,6 +10,7 @@ from core.registry import ChatPlatform
 from core import config
 from database.models import FlagExplanation, IncrementalAnalysis, ChatMessage
 from schemas.grooming import IncrementalAnalysisResponse, NewlyDetectedStage
+
 logger = logging.getLogger(__name__)
 
 # All grooming stages in order
@@ -43,14 +44,14 @@ def _format_conversation_with_ids(
     )
 
     total_count = len(all_messages)
-    
+
     # Skip already processed messages, and get only new ones
     messages_to_process = all_messages[since_message_count:]
-    
+
     lines = ["Conversation:"]
     for msg in messages_to_process:
         lines.append(f"[{msg.id}] {msg.content}")
-    
+
     conversation = "\n".join(lines)
     return conversation, total_count
 
@@ -78,7 +79,7 @@ def _get_or_create_incremental_analysis(
         )
         .first()
     )
-    
+
     if record is None:
         record = IncrementalAnalysis(
             platform=platform,
@@ -91,7 +92,7 @@ def _get_or_create_incremental_analysis(
         db.add(record)
         db.commit()
         db.refresh(record)
-    
+
     return record
 
 
@@ -103,7 +104,7 @@ def _get_undetected_stages(detected_stages: list[str]) -> list[str]:
 def _build_incremental_prompt(undetected_stages: list[str]) -> str:
     """Build a prompt with only undetected stages listed."""
     stages_text = "\n".join(f"- {stage}" for stage in undetected_stages)
-    
+
     return f"""
     You are analyzing a conversation for grooming behaviors. Some stages have already been detected and should be IGNORED.
 
@@ -158,12 +159,12 @@ async def _call_groq_incremental(
 
     content = body["choices"][0]["message"]["content"]
     parsed = _extract_json(content)
-    
+
     # Validate response structure
     if "new_stages" not in parsed:
         logger.warning(f"Unexpected response format: {parsed}")
         return IncrementalAnalysisResponse(new_stages=[])
-    
+
     # Convert to NewlyDetectedStage objects
     new_stages = []
     for stage_data in parsed.get("new_stages", []):
@@ -171,7 +172,7 @@ async def _call_groq_incremental(
             new_stages.append(NewlyDetectedStage.model_validate(stage_data))
         except Exception as e:
             logger.warning(f"Failed to parse stage data: {stage_data}, error: {e}")
-    
+
     return IncrementalAnalysisResponse(new_stages=new_stages)
 
 
@@ -187,7 +188,7 @@ async def get_incremental_analysis(
 ) -> IncrementalAnalysisResponse | None:
     """
     Perform incremental grooming analysis.
-    
+
     Returns only newly detected stages, or None if analysis failed.
     """
     incremental = _get_or_create_incremental_analysis(db, platform, server_id)
@@ -197,13 +198,15 @@ async def get_incremental_analysis(
     if not undetected:
         # All stages already detected
         return IncrementalAnalysisResponse(new_stages=[])
-    
+
     try:
         # Format conversation with only new messages since the last analysis.
         conversation, total_message_count = _format_conversation_with_ids(
             db, platform, server_id, incremental.last_processed_message_count
         )
-        new_message_count = total_message_count - incremental.last_processed_message_count
+        new_message_count = (
+            total_message_count - incremental.last_processed_message_count
+        )
 
         if not should_run_analysis(new_message_count):
             return None
@@ -224,7 +227,7 @@ async def get_incremental_analysis(
         db.refresh(incremental)
 
         return response
-        
+
     except Exception:
         logger.exception(
             "Failed to generate incremental grooming analysis for server %s on %s",
@@ -273,4 +276,3 @@ def lookup_explanation_payload(
     if row is None:
         return None
     return row.explanation
-

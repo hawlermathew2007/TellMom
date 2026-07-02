@@ -6,9 +6,7 @@ from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
 from core import config
-from core.cache import flag_store
 from database.models import ChatMessage
-from schemas.flags import FlaggedConversation
 
 from services.explanation import increment_unprocessed_count
 from services.messages import (
@@ -66,6 +64,7 @@ async def process_ingest(
             detail=f"Classifier not connected. Retry later. {e}",
         )
 
+    # TODO: add the classification probability from SVM
     logger.warning(f"Classification result: {result.has_pedo}")
     if result.has_pedo:
         chat_group = load_server_chat_group(
@@ -74,20 +73,13 @@ async def process_ingest(
 
         # Start incremental grooming analysis by tracking unprocessed messages
         increment_unprocessed_count(db, platform, server_id)
-
-        flagged_messages = [m.content for m in db_messages]
-        flag_key = f"{platform.value}:{server_id}"
-        flag_store[flag_key] = FlaggedConversation(
-            platform=platform.value,
-            server_id=server_id,
-            flagged_chats=flagged_messages,
-            resolved=False,
+        preview = (
+            db_messages[-1].content if db_messages else "suspicious message deteceted"
         )
-
         await notify_parents_in_chat(
             db,
             platform,
             server_id,
             chat_group,
-            flagged_messages,
+            preview,
         )

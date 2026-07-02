@@ -110,7 +110,6 @@ class LogTailer:
         with self.log_path.open("r", encoding="utf-8", errors="replace") as f:
             f.seek(self._offset)
             while True:
-                pos_before = f.tell()
                 raw = f.readline()
                 if not raw:
                     break
@@ -196,7 +195,9 @@ async def run(
         await client.aclose()
 
 
-async def _send_with_retry(client: IngestClient, msg: ChatMessage, max_retries: int) -> None:
+async def _send_with_retry(
+    client: IngestClient, msg: ChatMessage, max_retries: int
+) -> None:
     delay = 1.0
     for attempt in range(1, max_retries + 1):
         try:
@@ -214,32 +215,67 @@ async def _send_with_retry(client: IngestClient, msg: ChatMessage, max_retries: 
                     exc.response.text,
                 )
                 return
-            log.warning("Server error sending message (attempt %d/%d): %s", attempt, max_retries, exc)
+            log.warning(
+                "Server error sending message (attempt %d/%d): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
         except httpx.HTTPError as exc:
-            log.warning("Network error sending message (attempt %d/%d): %s", attempt, max_retries, exc)
+            log.warning(
+                "Network error sending message (attempt %d/%d): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
 
         if attempt < max_retries:
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30.0)
-    log.error("Giving up on message from %s after %d attempts: %s", msg.username, max_retries, msg.message)
+    log.error(
+        "Giving up on message from %s after %d attempts: %s",
+        msg.username,
+        max_retries,
+        msg.message,
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Tail a Minecraft log and forward chat to backend /ingest")
-    parser.add_argument("--log", required=True, type=Path, help="Path to the Minecraft log file (e.g. latest.log)")
-    parser.add_argument("--backend-url", required=True, help="Full URL of the /ingest endpoint")
-    parser.add_argument("--server-id", required=True, help="Identifier for this Minecraft server")
+    parser = argparse.ArgumentParser(
+        description="Tail a Minecraft log and forward chat to backend /ingest"
+    )
+    parser.add_argument(
+        "--log",
+        required=True,
+        type=Path,
+        help="Path to the Minecraft log file (e.g. latest.log)",
+    )
+    parser.add_argument(
+        "--backend-url", required=True, help="Full URL of the /ingest endpoint"
+    )
+    parser.add_argument(
+        "--server-id", required=True, help="Identifier for this Minecraft server"
+    )
     parser.add_argument(
         "--state-file",
         type=Path,
         default=None,
         help="Where to persist read/send offsets (default: <log>.adapter-state.json)",
     )
-    parser.add_argument("--poll-interval", type=float, default=1.0, help="Seconds between log polls")
-    parser.add_argument("--max-retries", type=int, default=5, help="Retries per message on transient failure")
+    parser.add_argument(
+        "--poll-interval", type=float, default=1.0, help="Seconds between log polls"
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help="Retries per message on transient failure",
+    )
     args = parser.parse_args()
 
-    state_path = args.state_file or args.log.with_suffix(args.log.suffix + ".adapter-state.json")
+    state_path = args.state_file or args.log.with_suffix(
+        args.log.suffix + ".adapter-state.json"
+    )
 
     asyncio.run(
         run(

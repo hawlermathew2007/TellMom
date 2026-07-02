@@ -24,7 +24,9 @@ def create_access_token(parent_id: int) -> str:
 
 def get_parent_from_token(db: Session, token: str) -> Parent | None:
     try:
-        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM]
+        )
         parent_id = payload.get("sub")
         if parent_id is None:
             return None

@@ -19,7 +19,9 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TELLMOM_API_URL = os.getenv("TELLMOM_API_URL", "http://localhost:8000/api/ingest")
 
 if not DISCORD_BOT_TOKEN:
-    logger.warning("DISCORD_BOT_TOKEN environment variable not set. Please set it in your .env file or environment.")
+    logger.warning(
+        "DISCORD_BOT_TOKEN environment variable not set. Please set it in your .env file or environment."
+    )
 
 # Configure intents: We need default intents + message_content to inspect message text
 intents = discord.Intents.default()
@@ -27,11 +29,13 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
+
 @client.event
 async def on_ready():
     logger.info(f"Logged in as Discord Bot: {client.user} (ID: {client.user.id})")
     logger.info(f"Ingesting chats to TellMom API at: {TELLMOM_API_URL}")
     logger.info("Ready and listening for messages...")
+
 
 @client.event
 async def on_message(message: discord.Message):
@@ -59,7 +63,9 @@ async def on_message(message: discord.Message):
         "message": message.content.strip(),
     }
 
-    logger.debug(f"Intercepted message from {message.author.id}: '{payload['message']}'")
+    logger.debug(
+        f"Intercepted message from {message.author.id}: '{payload['message']}'"
+    )
 
     # Forward to TellMom API
     try:
@@ -80,10 +86,11 @@ async def on_message(message: discord.Message):
     except Exception as exc:
         logger.error(f"Unexpected error forwarding message: {exc}")
 
+
 if __name__ == "__main__":
     if not DISCORD_BOT_TOKEN:
         logger.error("Cannot start bot: DISCORD_BOT_TOKEN is missing.")
         exit(1)
-    
+
     # Run the Discord bot client
     client.run(DISCORD_BOT_TOKEN)

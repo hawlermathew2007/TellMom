@@ -11,9 +11,9 @@ Name | Type
 `platform` | [ChatPlatform](ChatPlatform.md)
 `serverId` | string
 `messagePreview` | string
-`explanation` | [GroomingAnalysis](GroomingAnalysis.md)
 `acknowledged` | boolean
 `createdAt` | Date
+`messages` | [Array&lt;ChatMessageResponse&gt;](ChatMessageResponse.md)
 
 ## Example
 
@@ -27,9 +27,9 @@ const example = {
   "platform": null,
   "serverId": null,
   "messagePreview": null,
-  "explanation": null,
   "acknowledged": null,
   "createdAt": null,
+  "messages": null,
 } satisfies AlertResponse
 
 console.log(example)

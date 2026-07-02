@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core import config
 from services.classifier_stream import classifier_stream
 from database.session import init_db
-from routers import alerts, auth, children, flags, ingest, parent
+from routers import alerts, auth, children, ingest
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,6 @@ app.include_router(children.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
 app.include_router(ingest.classifier_router)
-app.include_router(flags.router, prefix="/api")
-app.include_router(parent.router, prefix="/api")
 
 
 if __name__ == "__main__":

@@ -14,13 +14,13 @@
  */
 
 import { mapValues } from '../runtime';
-import type { GroomingAnalysis } from './GroomingAnalysis';
+import type { ChatMessageResponse } from './ChatMessageResponse';
 import {
-    GroomingAnalysisFromJSON,
-    GroomingAnalysisFromJSONTyped,
-    GroomingAnalysisToJSON,
-    GroomingAnalysisToJSONTyped,
-} from './GroomingAnalysis';
+    ChatMessageResponseFromJSON,
+    ChatMessageResponseFromJSONTyped,
+    ChatMessageResponseToJSON,
+    ChatMessageResponseToJSONTyped,
+} from './ChatMessageResponse';
 import type { ChatPlatform } from './ChatPlatform';
 import {
     ChatPlatformFromJSON,
@@ -67,12 +67,6 @@ export interface AlertResponse {
     messagePreview: string;
     /**
      * 
-     * @type {GroomingAnalysis}
-     * @memberof AlertResponse
-     */
-    explanation?: GroomingAnalysis | null;
-    /**
-     * 
      * @type {boolean}
      * @memberof AlertResponse
      */
@@ -83,6 +77,12 @@ export interface AlertResponse {
      * @memberof AlertResponse
      */
     createdAt: Date;
+    /**
+     * 
+     * @type {Array<ChatMessageResponse>}
+     * @memberof AlertResponse
+     */
+    messages?: Array<ChatMessageResponse>;
 }
 
 
@@ -116,9 +116,9 @@ export function AlertResponseFromJSONTyped(json: any, ignoreDiscriminator: boole
         'platform': ChatPlatformFromJSON(json['platform']),
         'serverId': json['server_id'],
         'messagePreview': json['message_preview'],
-        'explanation': json['explanation'] == null ? undefined : GroomingAnalysisFromJSON(json['explanation']),
         'acknowledged': json['acknowledged'],
         'createdAt': (new Date(json['created_at'])),
+        'messages': json['messages'] == null ? undefined : ((json['messages'] as Array<any>).map(ChatMessageResponseFromJSON)),
     };
 }
 
@@ -138,9 +138,9 @@ export function AlertResponseToJSONTyped(value?: AlertResponse | null, ignoreDis
         'platform': ChatPlatformToJSON(value['platform']),
         'server_id': value['serverId'],
         'message_preview': value['messagePreview'],
-        'explanation': GroomingAnalysisToJSON(value['explanation']),
         'acknowledged': value['acknowledged'],
         'created_at': value['createdAt'].toISOString(),
+        'messages': value['messages'] == null ? undefined : ((value['messages'] as Array<any>).map(ChatMessageResponseToJSON)),
     };
 }
 

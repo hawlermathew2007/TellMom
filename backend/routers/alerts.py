@@ -82,7 +82,7 @@ async def get_grooming_analysis(
 ) -> IncrementalAnalysisResponse:
     """
     Get or generate incremental grooming analysis for an alert.
-    
+
     Returns only newly detected stages (empty if none detected or already fully analyzed).
     """
     alert = (
@@ -95,17 +95,19 @@ async def get_grooming_analysis(
 
     # Parse platform from alert
     try:
-        platform = ChatPlatform(alert.platform.value if hasattr(alert.platform, 'value') else alert.platform)
+        platform = ChatPlatform(
+            alert.platform.value if hasattr(alert.platform, "value") else alert.platform
+        )
     except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid platform in alert")
 
     # Get incremental analysis
     result = await get_incremental_analysis(db, platform, alert.server_id)
-    
+
     if result is None:
         # Analysis failed or threshold not met
         return IncrementalAnalysisResponse(new_stages=[])
-    
+
     return result
 
 

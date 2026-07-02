@@ -1,26 +1,27 @@
 
-# ClassifierCheckInResponse
+# NewlyDetectedStage
 
+A newly detected grooming stage with minimal evidence.
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`status` | string
-`message` | string
-`token` | string
+`stage` | string
+`confidence` | string
+`messageId` | number
 
 ## Example
 
 ```typescript
-import type { ClassifierCheckInResponse } from ''
+import type { NewlyDetectedStage } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "status": null,
-  "message": null,
-  "token": null,
-} satisfies ClassifierCheckInResponse
+  "stage": null,
+  "confidence": null,
+  "messageId": null,
+} satisfies NewlyDetectedStage
 
 console.log(example)
 
@@ -29,7 +30,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as ClassifierCheckInResponse
+const exampleParsed = JSON.parse(exampleJSON) as NewlyDetectedStage
 console.log(exampleParsed)
 ```
 

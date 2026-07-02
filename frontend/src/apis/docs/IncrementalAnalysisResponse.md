@@ -1,26 +1,23 @@
 
-# ClassifierCheckInResponse
+# IncrementalAnalysisResponse
 
+Response from incremental grooming analysis.
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`status` | string
-`message` | string
-`token` | string
+`newStages` | [Array&lt;NewlyDetectedStage&gt;](NewlyDetectedStage.md)
 
 ## Example
 
 ```typescript
-import type { ClassifierCheckInResponse } from ''
+import type { IncrementalAnalysisResponse } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "status": null,
-  "message": null,
-  "token": null,
-} satisfies ClassifierCheckInResponse
+  "newStages": null,
+} satisfies IncrementalAnalysisResponse
 
 console.log(example)
 
@@ -29,7 +26,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as ClassifierCheckInResponse
+const exampleParsed = JSON.parse(exampleJSON) as IncrementalAnalysisResponse
 console.log(exampleParsed)
 ```
 

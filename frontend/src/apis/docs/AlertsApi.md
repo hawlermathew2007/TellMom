@@ -5,6 +5,7 @@ All URIs are relative to *http://localhost*
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
 | [**acknowledgeAlertApiAlertsAlertIdAcknowledgePost**](AlertsApi.md#acknowledgealertapialertsalertidacknowledgepost) | **POST** /api/alerts/{alert_id}/acknowledge | Acknowledge Alert |
+| [**getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet**](AlertsApi.md#getgroominganalysisapialertsalertidgroominganalysisget) | **GET** /api/alerts/{alert_id}/grooming-analysis | Get Grooming Analysis |
 | [**listAlertsApiAlertsGet**](AlertsApi.md#listalertsapialertsget) | **GET** /api/alerts | List Alerts |
 
 
@@ -59,6 +60,78 @@ example().catch(console.error);
 ### Return type
 
 [**AlertResponse**](AlertResponse.md)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successful Response |  -  |
+| **422** | Validation Error |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet
+
+> IncrementalAnalysisResponse getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(alertId)
+
+Get Grooming Analysis
+
+Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
+
+### Example
+
+```ts
+import {
+  Configuration,
+  AlertsApi,
+} from '';
+import type { GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const config = new Configuration({ 
+    // Configure HTTP bearer authorization: HTTPBearer
+    accessToken: "YOUR BEARER TOKEN",
+  });
+  const api = new AlertsApi(config);
+
+  const body = {
+    // number
+    alertId: 56,
+  } satisfies GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest;
+
+  try {
+    const data = await api.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **alertId** | `number` |  | [Defaults to `undefined`] |
+
+### Return type
+
+[**IncrementalAnalysisResponse**](IncrementalAnalysisResponse.md)
 
 ### Authorization
 

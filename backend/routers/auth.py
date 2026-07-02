@@ -10,7 +10,9 @@ from services.auth import create_access_token, hash_password, verify_password
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=ParentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=ParentResponse, status_code=status.HTTP_201_CREATED
+)
 def register_parent(body: ParentRegister, db: Session = Depends(get_db)) -> Parent:
     existing = db.query(Parent).filter(Parent.email == body.email).first()
     if existing:

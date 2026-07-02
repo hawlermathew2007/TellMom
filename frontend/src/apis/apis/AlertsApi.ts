@@ -24,8 +24,17 @@ import {
     HTTPValidationErrorFromJSON,
     HTTPValidationErrorToJSON,
 } from '../models/HTTPValidationError';
+import {
+    type IncrementalAnalysisResponse,
+    IncrementalAnalysisResponseFromJSON,
+    IncrementalAnalysisResponseToJSON,
+} from '../models/IncrementalAnalysisResponse';
 
 export interface AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest {
+    alertId: number;
+}
+
+export interface GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest {
     alertId: number;
 }
 
@@ -84,6 +93,61 @@ export class AlertsApi extends runtime.BaseAPI {
      */
     async acknowledgeAlertApiAlertsAlertIdAcknowledgePost(requestParameters: AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AlertResponse> {
         const response = await this.acknowledgeAlertApiAlertsAlertIdAcknowledgePostRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet without sending the request
+     */
+    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequestOpts(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['alertId'] == null) {
+            throw new runtime.RequiredError(
+                'alertId',
+                'Required parameter "alertId" was null or undefined when calling getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("HTTPBearer", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/alerts/{alert_id}/grooming-analysis`;
+        urlPath = urlPath.replace('{alert_id}', encodeURIComponent(String(requestParameters['alertId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
+     * Get Grooming Analysis
+     */
+    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRaw(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IncrementalAnalysisResponse>> {
+        const requestOptions = await this.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => IncrementalAnalysisResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
+     * Get Grooming Analysis
+     */
+    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IncrementalAnalysisResponse> {
+        const response = await this.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

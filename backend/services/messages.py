@@ -74,8 +74,7 @@ async def notify_parents_in_chat(
     platform: ChatPlatform,
     server_id: str,
     chat_group: dict[str, list[str]],
-    flagged_messages: list[str],
-    # explanation: dict | None = None,
+    preview: str,
 ) -> None:
     participant_ids = set(chat_group.keys())
     children = (
@@ -89,7 +88,6 @@ async def notify_parents_in_chat(
     if not children:
         return
 
-    preview = flagged_messages[-1] if flagged_messages else "Suspicious activity detected"
     parent_ids: set[int] = set()
     created_alerts: list[Alert] = []
 
@@ -100,7 +98,6 @@ async def notify_parents_in_chat(
             platform=platform,
             server_id=server_id,
             message_preview=preview[:500],
-            # explanation=explanation,
         )
         db.add(alert)
         created_alerts.append(alert)

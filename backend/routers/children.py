@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 from database.models import ChildAccount, Parent
 from database.session import get_db
 from core.dependencies import get_current_parent
-from schemas.children import ChildAccountCreate, ChildAccountResponse, ChildAccountUpdate
+from schemas.children import (
+    ChildAccountCreate,
+    ChildAccountResponse,
+    ChildAccountUpdate,
+)
 
 router = APIRouter(prefix="/children", tags=["children"])
 
@@ -23,7 +27,9 @@ def list_children(
     )
 
 
-@router.post("", response_model=ChildAccountResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=ChildAccountResponse, status_code=status.HTTP_201_CREATED
+)
 def create_child(
     body: ChildAccountCreate,
     parent: Parent = Depends(get_current_parent),

@@ -1,9 +1,6 @@
 from datetime import datetime
-
 from pydantic import BaseModel
-
 from core.registry import ChatPlatform
-from schemas.grooming import GroomingAnalysis
 
 
 class ChatMessageResponse(BaseModel):
@@ -20,7 +17,6 @@ class AlertResponse(BaseModel):
     platform: ChatPlatform
     server_id: str
     message_preview: str
-    # explanation: GroomingAnalysis | None = None
     acknowledged: bool
     created_at: datetime
     messages: list[ChatMessageResponse] = []

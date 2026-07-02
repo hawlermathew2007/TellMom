@@ -1,4 +1,5 @@
 import os
+import torch
 from pathlib import Path
 
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
@@ -14,7 +15,7 @@ CHECKPOINT_DIR = Path("checkpoints")
 SCALER_PATH = "scaler_simcse_base_roberta.joblib"
 CLASSIFIER_PATH = "svm_simcse_base_roberta.joblib"
 MODEL_NAME = "princeton-nlp/sup-simcse-roberta-base"
-import torch
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 QUEUE_MAXSIZE = 512

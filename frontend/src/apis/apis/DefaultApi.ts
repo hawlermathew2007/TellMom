@@ -15,11 +15,6 @@
 
 import * as runtime from '../runtime';
 import {
-    type FlaggedConversation,
-    FlaggedConversationFromJSON,
-    FlaggedConversationToJSON,
-} from '../models/FlaggedConversation';
-import {
     type HTTPValidationError,
     HTTPValidationErrorFromJSON,
     HTTPValidationErrorToJSON,
@@ -32,15 +27,6 @@ import {
 
 export interface IngestApiIngestPostRequest {
     ingestRequest: IngestRequest;
-}
-
-export interface ListFlagsApiFlagsGetRequest {
-    resolved?: boolean | null;
-}
-
-export interface ResolveFlagApiFlagsPlatformServerIdResolvePostRequest {
-    platform: string;
-    serverId: string;
 }
 
 /**
@@ -92,100 +78,6 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async ingestApiIngestPost(requestParameters: IngestApiIngestPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.ingestApiIngestPostRaw(requestParameters, initOverrides);
-    }
-
-    /**
-     * Creates request options for listFlagsApiFlagsGet without sending the request
-     */
-    async listFlagsApiFlagsGetRequestOpts(requestParameters: ListFlagsApiFlagsGetRequest): Promise<runtime.RequestOpts> {
-        const queryParameters: any = {};
-
-        if (requestParameters['resolved'] != null) {
-            queryParameters['resolved'] = requestParameters['resolved'];
-        }
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-
-        let urlPath = `/api/flags`;
-
-        return {
-            path: urlPath,
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        };
-    }
-
-    /**
-     * List Flags
-     */
-    async listFlagsApiFlagsGetRaw(requestParameters: ListFlagsApiFlagsGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<FlaggedConversation>>> {
-        const requestOptions = await this.listFlagsApiFlagsGetRequestOpts(requestParameters);
-        const response = await this.request(requestOptions, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => jsonValue.map(FlaggedConversationFromJSON));
-    }
-
-    /**
-     * List Flags
-     */
-    async listFlagsApiFlagsGet(requestParameters: ListFlagsApiFlagsGetRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<FlaggedConversation>> {
-        const response = await this.listFlagsApiFlagsGetRaw(requestParameters, initOverrides);
-        return await response.value();
-    }
-
-    /**
-     * Creates request options for resolveFlagApiFlagsPlatformServerIdResolvePost without sending the request
-     */
-    async resolveFlagApiFlagsPlatformServerIdResolvePostRequestOpts(requestParameters: ResolveFlagApiFlagsPlatformServerIdResolvePostRequest): Promise<runtime.RequestOpts> {
-        if (requestParameters['platform'] == null) {
-            throw new runtime.RequiredError(
-                'platform',
-                'Required parameter "platform" was null or undefined when calling resolveFlagApiFlagsPlatformServerIdResolvePost().'
-            );
-        }
-
-        if (requestParameters['serverId'] == null) {
-            throw new runtime.RequiredError(
-                'serverId',
-                'Required parameter "serverId" was null or undefined when calling resolveFlagApiFlagsPlatformServerIdResolvePost().'
-            );
-        }
-
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-
-        let urlPath = `/api/flags/{platform}/{server_id}/resolve`;
-        urlPath = urlPath.replace('{platform}', encodeURIComponent(String(requestParameters['platform'])));
-        urlPath = urlPath.replace('{server_id}', encodeURIComponent(String(requestParameters['serverId'])));
-
-        return {
-            path: urlPath,
-            method: 'POST',
-            headers: headerParameters,
-            query: queryParameters,
-        };
-    }
-
-    /**
-     * Resolve Flag
-     */
-    async resolveFlagApiFlagsPlatformServerIdResolvePostRaw(requestParameters: ResolveFlagApiFlagsPlatformServerIdResolvePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<{ [key: string]: any; }>> {
-        const requestOptions = await this.resolveFlagApiFlagsPlatformServerIdResolvePostRequestOpts(requestParameters);
-        const response = await this.request(requestOptions, initOverrides);
-
-        return new runtime.JSONApiResponse<any>(response);
-    }
-
-    /**
-     * Resolve Flag
-     */
-    async resolveFlagApiFlagsPlatformServerIdResolvePost(requestParameters: ResolveFlagApiFlagsPlatformServerIdResolvePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<{ [key: string]: any; }> {
-        const response = await this.resolveFlagApiFlagsPlatformServerIdResolvePostRaw(requestParameters, initOverrides);
-        return await response.value();
     }
 
 }

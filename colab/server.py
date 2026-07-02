@@ -238,7 +238,10 @@ class InferenceThread(threading.Thread):
                 if self.response_sender:
                     response_payload = {
                         "request_id": request_id,
-                        "result": {"has_pedo": bool(result[0]), "probability": result[1]}
+                        "result": {
+                            "has_pedo": bool(result[0]),
+                            "probability": result[1],
+                        },
                     }
                     self.response_sender(response_payload)
 

@@ -32,6 +32,12 @@ export interface ClassifierCheckInResponse {
      * @memberof ClassifierCheckInResponse
      */
     message?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ClassifierCheckInResponse
+     */
+    token: string;
 }
 
 
@@ -48,6 +54,7 @@ export type ClassifierCheckInResponseStatusEnum = typeof ClassifierCheckInRespon
  * Check if a given object implements the ClassifierCheckInResponse interface.
  */
 export function instanceOfClassifierCheckInResponse(value: object): value is ClassifierCheckInResponse {
+    if (!('token' in value) || value['token'] === undefined) return false;
     return true;
 }
 
@@ -63,6 +70,7 @@ export function ClassifierCheckInResponseFromJSONTyped(json: any, ignoreDiscrimi
         
         'status': json['status'] == null ? undefined : json['status'],
         'message': json['message'] == null ? undefined : json['message'],
+        'token': json['token'],
     };
 }
 
@@ -79,6 +87,7 @@ export function ClassifierCheckInResponseToJSONTyped(value?: ClassifierCheckInRe
         
         'status': value['status'],
         'message': value['message'],
+        'token': value['token'],
     };
 }
 
