@@ -4,11 +4,11 @@ from sqlalchemy.orm import Session
 
 from adapters.base import ChatPlatform
 from database.models import Alert, ChatMessage, ChildAccount
-from schemas.alerts import AlertResponse
+from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.notifications import alert_manager
 
 
-def persist_chat_message(
+def add_message_db(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
@@ -74,7 +74,6 @@ async def notify_parents_in_chat(
     platform: ChatPlatform,
     server_id: str,
     chat_group: dict[str, list[str]],
-    flagged_user_id: str,
     flagged_messages: list[str],
     explanation: dict | None = None,
 ) -> None:
@@ -98,7 +97,6 @@ async def notify_parents_in_chat(
         alert = Alert(
             parent_id=child.parent_id,
             child_account_id=child.id,
-            flagged_user_id=flagged_user_id,
             platform=platform,
             server_id=server_id,
             message_preview=preview[:500],
@@ -112,6 +110,18 @@ async def notify_parents_in_chat(
 
     for alert in created_alerts:
         db.refresh(alert)
-        payload = AlertResponse.model_validate(alert).model_dump(mode="json")
+        # Fetch conversation messages to link them together
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        alert_res = AlertResponse.model_validate(alert)
+        alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+        payload = alert_res.model_dump(mode="json")
         payload["type"] = "alert"
         await alert_manager.notify_parent(alert.parent_id, payload)

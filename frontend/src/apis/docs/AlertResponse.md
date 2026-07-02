@@ -8,10 +8,10 @@ Name | Type
 ------------ | -------------
 `id` | number
 `childAccountId` | number
-`flaggedUserId` | string
 `platform` | [ChatPlatform](ChatPlatform.md)
 `serverId` | string
 `messagePreview` | string
+`explanation` | [GroomingAnalysis](GroomingAnalysis.md)
 `acknowledged` | boolean
 `createdAt` | Date
 
@@ -24,10 +24,10 @@ import type { AlertResponse } from ''
 const example = {
   "id": null,
   "childAccountId": null,
-  "flaggedUserId": null,
   "platform": null,
   "serverId": null,
   "messagePreview": null,
+  "explanation": null,
   "acknowledged": null,
   "createdAt": null,
 } satisfies AlertResponse

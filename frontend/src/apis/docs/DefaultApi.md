@@ -6,13 +6,13 @@ All URIs are relative to *http://localhost*
 |------------- | ------------- | -------------|
 | [**ingestApiIngestPost**](DefaultApi.md#ingestapiingestpost) | **POST** /api/ingest | Ingest |
 | [**listFlagsApiFlagsGet**](DefaultApi.md#listflagsapiflagsget) | **GET** /api/flags | List Flags |
-| [**resolveFlagApiFlagsUserIdResolvePost**](DefaultApi.md#resolveflagapiflagsuseridresolvepost) | **POST** /api/flags/{user_id}/resolve | Resolve Flag |
+| [**resolveFlagApiFlagsPlatformServerIdResolvePost**](DefaultApi.md#resolveflagapiflagsplatformserveridresolvepost) | **POST** /api/flags/{platform}/{server_id}/resolve | Resolve Flag |
 
 
 
 ## ingestApiIngestPost
 
-> IngestResponse ingestApiIngestPost(ingestRequest)
+> ingestApiIngestPost(ingestRequest)
 
 Ingest
 
@@ -55,7 +55,7 @@ example().catch(console.error);
 
 ### Return type
 
-[**IngestResponse**](IngestResponse.md)
+`void` (Empty response body)
 
 ### Authorization
 
@@ -70,7 +70,7 @@ No authorization required
 ### HTTP response details
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
-| **200** | Successful Response |  -  |
+| **204** | Successful Response |  -  |
 | **422** | Validation Error |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
@@ -78,7 +78,7 @@ No authorization required
 
 ## listFlagsApiFlagsGet
 
-> Array&lt;FlaggedUser&gt; listFlagsApiFlagsGet(resolved)
+> Array&lt;FlaggedConversation&gt; listFlagsApiFlagsGet(resolved)
 
 List Flags
 
@@ -121,7 +121,7 @@ example().catch(console.error);
 
 ### Return type
 
-[**Array&lt;FlaggedUser&gt;**](FlaggedUser.md)
+[**Array&lt;FlaggedConversation&gt;**](FlaggedConversation.md)
 
 ### Authorization
 
@@ -142,9 +142,9 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## resolveFlagApiFlagsUserIdResolvePost
+## resolveFlagApiFlagsPlatformServerIdResolvePost
 
-> { [key: string]: any; } resolveFlagApiFlagsUserIdResolvePost(userId)
+> { [key: string]: any; } resolveFlagApiFlagsPlatformServerIdResolvePost(platform, serverId)
 
 Resolve Flag
 
@@ -155,7 +155,7 @@ import {
   Configuration,
   DefaultApi,
 } from '';
-import type { ResolveFlagApiFlagsUserIdResolvePostRequest } from '';
+import type { ResolveFlagApiFlagsPlatformServerIdResolvePostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -163,11 +163,13 @@ async function example() {
 
   const body = {
     // string
-    userId: userId_example,
-  } satisfies ResolveFlagApiFlagsUserIdResolvePostRequest;
+    platform: platform_example,
+    // string
+    serverId: serverId_example,
+  } satisfies ResolveFlagApiFlagsPlatformServerIdResolvePostRequest;
 
   try {
-    const data = await api.resolveFlagApiFlagsUserIdResolvePost(body);
+    const data = await api.resolveFlagApiFlagsPlatformServerIdResolvePost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -183,7 +185,8 @@ example().catch(console.error);
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **userId** | `string` |  | [Defaults to `undefined`] |
+| **platform** | `string` |  | [Defaults to `undefined`] |
+| **serverId** | `string` |  | [Defaults to `undefined`] |
 
 ### Return type
 

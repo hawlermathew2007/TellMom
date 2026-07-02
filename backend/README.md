@@ -28,6 +28,7 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` |
 | `MESSAGE_CACHE_TTL_HOURS` | `24` |
 | `CLASSIFIER_MIN_MESSAGES` | `7` |
+| `CLASSIFIER_PASSWORD` | `1234` |
 
 ## API overview
 

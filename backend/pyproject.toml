@@ -15,4 +15,5 @@ dependencies = [
     "python-jose[cryptography]>=3.4.0",
     "sqlalchemy>=2.0.40",
     "uvicorn[standard]>=0.49.0",
+    "pyjwt>=2.13.0",
 ]
