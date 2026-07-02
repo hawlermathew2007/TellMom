@@ -110,3 +110,28 @@ class FlagExplanation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class IncrementalAnalysis(Base):
+    __tablename__ = "incremental_analyses"
+    __table_args__ = (
+        UniqueConstraint(
+            "platform", "server_id", name="uq_incremental_analysis_server"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[ChatPlatform] = mapped_column(
+        SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
+    )
+    server_id: Mapped[str] = mapped_column(String(255), index=True)
+    detected_stages: Mapped[list[str]] = mapped_column(JSON, default=list)
+    last_processed_message_count: Mapped[int] = mapped_column(default=0)
+    accumulated_analysis: Mapped[dict] = mapped_column(JSON, default=dict)
+    unprocessed_message_count: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

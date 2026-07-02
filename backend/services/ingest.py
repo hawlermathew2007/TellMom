@@ -9,7 +9,8 @@ from core import config
 from core.cache import flag_store
 from database.models import ChatMessage
 from schemas.flags import FlaggedConversation
-# from services.explanation import get_or_generate_explanation
+
+from services.explanation import increment_unprocessed_count
 from services.messages import (
     add_message_db,
     notify_parents_in_chat,
@@ -70,11 +71,9 @@ async def process_ingest(
         chat_group = load_server_chat_group(
             db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
         )
-        # TODO: implement AI recommendation later
-        explanation = None
-        explanation_payload = None
-        # explanation = await get_or_generate_explanation(db, platform, server_id, chat_group)
-        # explanation_payload = explanation.model_dump(mode="json") if explanation else None
+
+        # Start incremental grooming analysis by tracking unprocessed messages
+        increment_unprocessed_count(db, platform, server_id)
 
         flagged_messages = [m.content for m in db_messages]
         flag_key = f"{platform.value}:{server_id}"
@@ -83,7 +82,6 @@ async def process_ingest(
             server_id=server_id,
             flagged_chats=flagged_messages,
             resolved=False,
-            explanation=explanation,
         )
 
         await notify_parents_in_chat(
@@ -92,5 +90,4 @@ async def process_ingest(
             server_id,
             chat_group,
             flagged_messages,
-            explanation_payload,
         )

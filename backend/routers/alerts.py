@@ -5,8 +5,11 @@ from database.models import Alert, Parent, ChatMessage
 from database.session import SessionLocal, get_db
 from core.dependencies import get_current_parent
 from schemas.alerts import AlertResponse, ChatMessageResponse
+from schemas.grooming import IncrementalAnalysisResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager
+from services.explanation import get_incremental_analysis
+from core.registry import ChatPlatform
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -69,6 +72,41 @@ def acknowledge_alert(
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
     return alert_res
+
+
+@router.get("/{alert_id}/grooming-analysis", response_model=IncrementalAnalysisResponse)
+async def get_grooming_analysis(
+    alert_id: int,
+    parent: Parent = Depends(get_current_parent),
+    db: Session = Depends(get_db),
+) -> IncrementalAnalysisResponse:
+    """
+    Get or generate incremental grooming analysis for an alert.
+    
+    Returns only newly detected stages (empty if none detected or already fully analyzed).
+    """
+    alert = (
+        db.query(Alert)
+        .filter(Alert.id == alert_id, Alert.parent_id == parent.id)
+        .first()
+    )
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    # Parse platform from alert
+    try:
+        platform = ChatPlatform(alert.platform.value if hasattr(alert.platform, 'value') else alert.platform)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid platform in alert")
+
+    # Get incremental analysis
+    result = await get_incremental_analysis(db, platform, alert.server_id)
+    
+    if result is None:
+        # Analysis failed or threshold not met
+        return IncrementalAnalysisResponse(new_stages=[])
+    
+    return result
 
 
 @router.websocket("/ws")

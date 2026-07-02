@@ -1,41 +1,62 @@
 import json
 import logging
 import re
+from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
 from core import config
-from core.cache import explanation_cache
-from database.models import FlagExplanation
-from schemas.grooming import GroomingAnalysis
-from services.grooming_prompt import GROOMING_SYSTEM_PROMPT
-
+from database.models import FlagExplanation, IncrementalAnalysis, ChatMessage
+from schemas.grooming import IncrementalAnalysisResponse, NewlyDetectedStage
 logger = logging.getLogger(__name__)
 
-GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+# All grooming stages in order
+ALL_STAGES = [
+    "Victim Selection",
+    "Access and Relationship Building",
+    "Trust Development",
+    "Isolation",
+    "Boundary Testing",
+    "Desensitization",
+    "Maintaining Control",
+]
 
 
-def _format_conversation(
-    platform: str,
-    server_id: str,
-    chat_group: dict[str, list[str]],
-) -> str:
-    lines = [
-        f"Platform: {platform}",
-        f"Server ID: {server_id}",
-        "",
-        "Conversation:",
-    ]
-    for user_id, messages in chat_group.items():
-        lines.append(f"\nUser {user_id}:")
-        for message in messages:
-            lines.append(f"  - {message}")
-    return "\n".join(lines)
+def _format_conversation_with_ids(
+    db: Session, platform: ChatPlatform, server_id: str, since_message_count: int
+) -> tuple[str, int]:
+    """
+    Format conversation with message IDs prefixed to each message.
+    Returns formatted conversation and total message count.
+    """
+    # Get all messages for this server
+    all_messages = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
+        )
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    total_count = len(all_messages)
+    
+    # Skip already processed messages, and get only new ones
+    messages_to_process = all_messages[since_message_count:]
+    
+    lines = ["Conversation:"]
+    for msg in messages_to_process:
+        lines.append(f"[{msg.id}] {msg.content}")
+    
+    conversation = "\n".join(lines)
+    return conversation, total_count
 
 
 def _extract_json(raw: str) -> dict:
+    """Extract JSON from response, handling markdown code fences."""
     text = raw.strip()
     fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
     if fence_match:
@@ -43,72 +64,71 @@ def _extract_json(raw: str) -> dict:
     return json.loads(text)
 
 
-def _lookup_db(
+def _get_or_create_incremental_analysis(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-) -> GroomingAnalysis | None:
-    row = (
-        db.query(FlagExplanation)
+) -> IncrementalAnalysis:
+    """Get or create an IncrementalAnalysis record."""
+    record = (
+        db.query(IncrementalAnalysis)
         .filter(
-            FlagExplanation.platform == platform,
-            FlagExplanation.server_id == server_id,
+            IncrementalAnalysis.platform == platform,
+            IncrementalAnalysis.server_id == server_id,
         )
         .first()
     )
-    if row is None:
-        return None
-    return GroomingAnalysis.model_validate(row.explanation)
-
-
-def lookup_explanation_payload(
-    db: Session,
-    platform: ChatPlatform,
-    server_id: str,
-) -> dict | None:
-    analysis = _lookup_db(db, platform, server_id)
-    if analysis is None:
-        return None
-    return analysis.model_dump(mode="json")
-
-
-def _save_db(
-    db: Session,
-    platform: ChatPlatform,
-    server_id: str,
-    analysis: GroomingAnalysis,
-) -> None:
-    existing = (
-        db.query(FlagExplanation)
-        .filter(
-            FlagExplanation.platform == platform,
-            FlagExplanation.server_id == server_id,
+    
+    if record is None:
+        record = IncrementalAnalysis(
+            platform=platform,
+            server_id=server_id,
+            detected_stages=[],
+            last_processed_message_count=0,
+            accumulated_analysis={},
+            unprocessed_message_count=0,
         )
-        .first()
-    )
-    payload = analysis.model_dump(mode="json")
-    if existing:
-        existing.explanation = payload
-    else:
-        db.add(
-            FlagExplanation(
-                platform=platform,
-                server_id=server_id,
-                explanation=payload,
-            )
-        )
-    db.commit()
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+    
+    return record
 
 
-async def _call_groq(
-    platform: str,
-    server_id: str,
-    chat_group: dict[str, list[str]],
-) -> GroomingAnalysis:
+def _get_undetected_stages(detected_stages: list[str]) -> list[str]:
+    """Return list of stages that have not yet been detected."""
+    return [s for s in ALL_STAGES if s not in detected_stages]
+
+
+def _build_incremental_prompt(undetected_stages: list[str]) -> str:
+    """Build a prompt with only undetected stages listed."""
+    stages_text = "\n".join(f"- {stage}" for stage in undetected_stages)
+    
+    return f"""
+    You are analyzing a conversation for grooming behaviors. Some stages have already been detected and should be IGNORED.
+
+    Only evaluate these remaining stages:
+    {stages_text}
+
+    For each stage, if observed, return the message ID that best supports it.
+
+    Return JSON in this format:
+    {{"new_stages": [{{"stage": "Stage Name", "confidence": "High", "message_id": 123}}]}}
+
+    Return empty array if no stages detected: {{"new_stages": []}}
+    """
+
+
+async def _call_groq_incremental(
+    conversation: str,
+    undetected_stages: list[str],
+) -> IncrementalAnalysisResponse:
+    """Call Groq to analyze only undetected stages."""
     if not config.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not configured")
 
-    conversation = _format_conversation(platform, server_id, chat_group)
+    prompt = _build_incremental_prompt(undetected_stages)
+    GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
@@ -120,8 +140,14 @@ async def _call_groq(
             json={
                 "model": config.GROQ_MODEL,
                 "messages": [
-                    {"role": "system", "content": GROOMING_SYSTEM_PROMPT},
-                    {"role": "user", "content": conversation},
+                    {
+                        "role": "system",
+                        "content": prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": conversation,
+                    },
                 ],
                 "temperature": 0.2,
                 "response_format": {"type": "json_object"},
@@ -132,40 +158,119 @@ async def _call_groq(
 
     content = body["choices"][0]["message"]["content"]
     parsed = _extract_json(content)
-    return GroomingAnalysis.model_validate(parsed)
+    
+    # Validate response structure
+    if "new_stages" not in parsed:
+        logger.warning(f"Unexpected response format: {parsed}")
+        return IncrementalAnalysisResponse(new_stages=[])
+    
+    # Convert to NewlyDetectedStage objects
+    new_stages = []
+    for stage_data in parsed.get("new_stages", []):
+        try:
+            new_stages.append(NewlyDetectedStage.model_validate(stage_data))
+        except Exception as e:
+            logger.warning(f"Failed to parse stage data: {stage_data}, error: {e}")
+    
+    return IncrementalAnalysisResponse(new_stages=new_stages)
 
 
-async def get_or_generate_explanation(
+def should_run_analysis(pending_message_count: int) -> bool:
+    """Check if we should run analysis based on the number of pending new messages."""
+    return pending_message_count >= 3
+
+
+async def get_incremental_analysis(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-    chat_group: dict[str, list[str]],
-) -> GroomingAnalysis | None:
-    cache_key = (platform.value, server_id)
+) -> IncrementalAnalysisResponse | None:
+    """
+    Perform incremental grooming analysis.
+    
+    Returns only newly detected stages, or None if analysis failed.
+    """
+    incremental = _get_or_create_incremental_analysis(db, platform, server_id)
 
-    cached = explanation_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    db_cached = _lookup_db(db, platform, server_id)
-    if db_cached is not None:
-        explanation_cache.set(cache_key, db_cached)
-        return db_cached
-
+    # Get undetected stages
+    undetected = _get_undetected_stages(incremental.detected_stages)
+    if not undetected:
+        # All stages already detected
+        return IncrementalAnalysisResponse(new_stages=[])
+    
     try:
-        analysis = await _call_groq(
-            platform.value,
-            server_id,
-            chat_group,
+        # Format conversation with only new messages since the last analysis.
+        conversation, total_message_count = _format_conversation_with_ids(
+            db, platform, server_id, incremental.last_processed_message_count
         )
+        new_message_count = total_message_count - incremental.last_processed_message_count
+
+        if not should_run_analysis(new_message_count):
+            return None
+
+        # Call LLM for incremental analysis on only the pending messages.
+        response = await _call_groq_incremental(conversation, undetected)
+
+        # Update detected stages and last processed count.
+        for new_stage in response.new_stages:
+            if new_stage.stage not in incremental.detected_stages:
+                incremental.detected_stages.append(new_stage.stage)
+
+        incremental.last_processed_message_count = total_message_count
+        incremental.unprocessed_message_count = 0
+        incremental.updated_at = datetime.now(UTC)
+
+        db.commit()
+        db.refresh(incremental)
+
+        return response
+        
     except Exception:
         logger.exception(
-            "Failed to generate grooming explanation for server %s on %s",
+            "Failed to generate incremental grooming analysis for server %s on %s",
             server_id,
             platform.value,
         )
         return None
 
-    explanation_cache.set(cache_key, analysis)
-    _save_db(db, platform, server_id, analysis)
-    return analysis
+
+def increment_unprocessed_count(
+    db: Session,
+    platform: ChatPlatform,
+    server_id: str,
+) -> None:
+    """Increment the unprocessed message count for a server."""
+    incremental = _get_or_create_incremental_analysis(db, platform, server_id)
+    incremental.unprocessed_message_count += 1
+    incremental.updated_at = datetime.now(UTC)
+    db.commit()
+
+
+def get_detected_stages(
+    db: Session,
+    platform: ChatPlatform,
+    server_id: str,
+) -> list[str]:
+    """Get list of already-detected stages for a server."""
+    incremental = _get_or_create_incremental_analysis(db, platform, server_id)
+    return incremental.detected_stages
+
+
+def lookup_explanation_payload(
+    db: Session,
+    platform: ChatPlatform,
+    server_id: str,
+) -> dict | None:
+    """Lookup the full accumulated analysis (legacy support)."""
+    row = (
+        db.query(FlagExplanation)
+        .filter(
+            FlagExplanation.platform == platform,
+            FlagExplanation.server_id == server_id,
+        )
+        .first()
+    )
+    if row is None:
+        return None
+    return row.explanation
+
