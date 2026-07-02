@@ -315,7 +315,7 @@ class InferencePipeline:
         )
 
         self._inf_thread.start()
-        self._ws_thread.start()
+        self.ws_thread.start()
         logger.info("Pipeline running. Press Ctrl-C to stop.")
 
         if block:
