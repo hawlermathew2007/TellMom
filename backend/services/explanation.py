@@ -5,7 +5,7 @@ import re
 import httpx
 from sqlalchemy.orm import Session
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from core import config
 from core.cache import explanation_cache
 from database.models import FlagExplanation

@@ -42,7 +42,10 @@ Some kind of table or list yada yada
 python -m venv .venv
 source ~/.venv/bin/activate
 
-pip -r requirements.txt
+# Install dependencies (backend also uses uv sync)
+cd backend
+uv sync
+cd ..
 
 # Open API
 cd backend
@@ -52,5 +55,13 @@ python app.py
 cd frontend
 npm start
 ```
+
+## Running Discord Bot
+```
+# Ensure you have your DISCORD_BOT_TOKEN set in backend/.env or as an environment variable.
+# Run the Discord bot client:
+python discord_bot.py
+```
+
 # Future Works
 For future works, our team will develop an Android app for practical purpose along with Advanced Computer Vision that will be used to continuously scan screens in the game of the children to detect for more further details of what going on visually, not just text-based. We will also expand the AI capability to detecting issues such as family information exposure and online bullying.

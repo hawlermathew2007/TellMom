@@ -1,8 +1,8 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from adapters.base import ChatPlatform
+from core.registry import ChatPlatform
 from database.models import Alert, ChatMessage, ChildAccount
 from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.notifications import alert_manager
@@ -33,7 +33,7 @@ def load_server_chat_group(
     *,
     max_age_hours: int,
 ) -> dict[str, list[str]]:
-    since = datetime.now(UTC) - timedelta(hours=max_age_hours)
+    since = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     rows = (
         db.query(ChatMessage)
         .filter(
@@ -57,7 +57,7 @@ def count_server_messages(
     *,
     max_age_hours: int,
 ) -> int:
-    since = datetime.now(UTC) - timedelta(hours=max_age_hours)
+    since = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     return (
         db.query(ChatMessage)
         .filter(
