@@ -3,23 +3,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD", "1234")
-CLASSIFIER_JWT_SECRET = os.getenv("CLASSIFIER_JWT_SECRET", "verysecret")
+CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD")
+assert CLASSIFIER_PASSWORD is not None
+
 CLASSIFIER_JWT_EXPIRE_HOURS = 4
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://tellmom:tellmom@localhost:5432/tellmom",
-)
-
-JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 60 * 60 * 7))  # 7 days
-
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+DATABASE_URL = os.getenv("POSTGRES_URL")
+assert DATABASE_URL is not None
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+assert GROQ_API_KEY is not None
 
-MESSAGE_CACHE_TTL_HOURS = int(os.getenv("MESSAGE_CACHE_TTL_HOURS", 24))
-CLASSIFIER_MIN_MESSAGES = int(os.getenv("CLASSIFIER_MIN_MESSAGES", 7))
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+assert JWT_SECRET is not None
+
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 60 * 60 * 7  # 7 days
+
+CORS_ORIGINS = ["http://localhost:5173"]
+
+MESSAGE_CACHE_TTL_HOURS = 24
+CLASSIFIER_MIN_MESSAGES = 7

@@ -1,6 +1,9 @@
 import os
 import torch
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_WS_URL = os.getenv("BACKEND_WS_URL", "ws://localhost:8000/stream")
@@ -20,8 +23,3 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 QUEUE_MAXSIZE = 512
 RECONNECT_DELAY = 5
-
-RISK_THRESHOLDS = {
-    "high": 0.70,
-    "medium": 0.40,
-}

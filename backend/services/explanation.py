@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
 from core import config
-from database.models import FlagExplanation, IncrementalAnalysis, ChatMessage
+from database.models import IncrementalAnalysis, ChatMessage
 from schemas.grooming import IncrementalAnalysisResponse, NewlyDetectedStage
 
 logger = logging.getLogger(__name__)
@@ -257,22 +257,3 @@ def get_detected_stages(
     """Get list of already-detected stages for a server."""
     incremental = _get_or_create_incremental_analysis(db, platform, server_id)
     return incremental.detected_stages
-
-
-def lookup_explanation_payload(
-    db: Session,
-    platform: ChatPlatform,
-    server_id: str,
-) -> dict | None:
-    """Lookup the full accumulated analysis (legacy support)."""
-    row = (
-        db.query(FlagExplanation)
-        .filter(
-            FlagExplanation.platform == platform,
-            FlagExplanation.server_id == server_id,
-        )
-        .first()
-    )
-    if row is None:
-        return None
-    return row.explanation

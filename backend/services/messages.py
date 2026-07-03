@@ -69,6 +69,7 @@ def count_server_messages(
     )
 
 
+# TODO: check for the overlap alert feature
 async def notify_parents_in_chat(
     db: Session,
     platform: ChatPlatform,
@@ -92,14 +93,13 @@ async def notify_parents_in_chat(
     parent_ids: set[int] = set()
     created_alerts: list[Alert] = []
 
+    # TODO: add a read state for the alert also
     # Check for recent alerts to avoid duplicates
-    since = datetime.now(timezone.utc) - timedelta(hours=1)
     recent_alerts = (
         db.query(Alert)
         .filter(
             Alert.platform == platform,
             Alert.server_id == server_id,
-            Alert.created_at >= since,
         )
         .all()
     )

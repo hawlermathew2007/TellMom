@@ -82,18 +82,13 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
 
         try {
             // Direct ingest API POST to backend
-            await getApis().alerts.request({
-                path: "/api/ingest",
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
+            await getApis().ingests.ingestApiIngestPost({
+                ingestRequest: {
                     platform,
-                    user_id: senderId,
-                    server_id: serverId,
+                    userId: senderId,
+                    serverId: serverId,
                     message: text
-                })
+                }
             });
 
             // Add to local UI log
@@ -196,8 +191,8 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                 type="button"
                                 onClick={() => setSenderRole("suspect")}
                                 className={`py-2 text-[10px] font-bold rounded-lg border uppercase transition-all ${senderRole === "suspect"
-                                        ? "bg-red-500/10 border-red-500/30 text-red-400"
-                                        : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
+                                    ? "bg-red-500/10 border-red-500/30 text-red-400"
+                                    : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
                             >
                                 Suspect
@@ -206,8 +201,8 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                 type="button"
                                 onClick={() => setSenderRole("child")}
                                 className={`py-2 text-[10px] font-bold rounded-lg border uppercase transition-all ${senderRole === "child"
-                                        ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                                        : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
+                                    ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                                    : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
                             >
                                 Target Child
@@ -216,8 +211,8 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                 type="button"
                                 onClick={() => setSenderRole("other")}
                                 className={`py-2 text-[10px] font-bold rounded-lg border uppercase transition-all ${senderRole === "other"
-                                        ? "bg-slate-800 border-slate-750 text-slate-350"
-                                        : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
+                                    ? "bg-slate-800 border-slate-750 text-slate-350"
+                                    : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
                             >
                                 Custom User
@@ -297,10 +292,10 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                         <span>{msg.timestamp.toLocaleTimeString()}</span>
                                     </div>
                                     <div className={`p-2.5 rounded-lg border text-xs leading-relaxed ${msg.role === "child"
-                                            ? "bg-blue-600/10 border-blue-500/20 text-blue-200"
-                                            : msg.role === "suspect"
-                                                ? "bg-red-500/10 border-red-500/20 text-red-200 animate-pulse-ring"
-                                                : "bg-slate-900 border-slate-800 text-slate-300"
+                                        ? "bg-blue-600/10 border-blue-500/20 text-blue-200"
+                                        : msg.role === "suspect"
+                                            ? "bg-red-500/10 border-red-500/20 text-red-200 animate-pulse-ring"
+                                            : "bg-slate-900 border-slate-800 text-slate-300"
                                         }`}>
                                         {msg.content}
                                     </div>
