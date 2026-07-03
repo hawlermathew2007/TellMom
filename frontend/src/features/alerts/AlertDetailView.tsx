@@ -135,6 +135,7 @@ export default function AlertDetailView({
             messages={alert.messages ?? []}
             detectedStages={alert.detectedStages}
             childName={alert.platform === "discord" ? childName : alert.serverId} // simple check or map sender names
+            activeTab={activeTab}
           />
         </div>
 
