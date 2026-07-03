@@ -43,6 +43,9 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
     const [message, setMessage] = useState("");
     const [localHistory, setLocalHistory] = useState<LocalSimMessage[]>([]);
 
+    // Ref for autoscroll
+    const chatEndRef = React.useRef<HTMLDivElement>(null);
+
     // Status
     const [isLoading, setIsLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -101,9 +104,7 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
             setLocalHistory(prev => [...prev, newMsg]);
 
             // Clear input
-            if (text === message) {
-                setMessage("");
-            }
+            setMessage("");
             setSuccess(true);
             setTimeout(() => setSuccess(false), 2000);
 
@@ -121,6 +122,40 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
             setSelectedChildId(String(children[0].id));
         }
     }, [children, selectedChildId]);
+
+    // Automatically scroll to bottom when new messages arrive
+    React.useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [localHistory]);
+
+    // Keybindings to switch sender role
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const activeEl = document.activeElement;
+            if (
+                activeEl &&
+                (activeEl.tagName === "INPUT" ||
+                    activeEl.tagName === "TEXTAREA" ||
+                    activeEl.tagName === "SELECT" ||
+                    (activeEl as HTMLElement).isContentEditable)
+            ) {
+                return;
+            }
+
+            if (e.key === "1") {
+                setSenderRole("suspect");
+            } else if (e.key === "2") {
+                setSenderRole("child");
+            } else if (e.key === "3") {
+                setSenderRole("other");
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, []);
 
     return (
         <div className="space-y-6">
@@ -194,8 +229,9 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                     ? "bg-red-500/10 border-red-500/30 text-red-400"
                                     : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
+                                title="Press key 1 to select Suspect role"
                             >
-                                Suspect
+                                Suspect [1]
                             </button>
                             <button
                                 type="button"
@@ -204,8 +240,9 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                     ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                                     : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
+                                title="Press key 2 to select Target Child role"
                             >
-                                Target Child
+                                Target Child [2]
                             </button>
                             <button
                                 type="button"
@@ -214,8 +251,9 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                     ? "bg-slate-800 border-slate-750 text-slate-350"
                                     : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                                     }`}
+                                title="Press key 3 to select Custom User role"
                             >
-                                Custom User
+                                Custom User [3]
                             </button>
                         </div>
 
@@ -302,6 +340,7 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
                                 </div>
                             ))
                         )}
+                        <div ref={chatEndRef} />
                     </div>
 
                     {/* Quick presets */}
