@@ -6,7 +6,6 @@ from database.session import SessionLocal, get_db
 from core.dependencies import get_current_parent
 from schemas.alerts import AlertResponse, ChatMessageResponse
 from schemas.grooming import IncrementalAnalysisResponse
-from services.auth import get_parent_from_token
 from services.notifications import alert_manager
 from services.explanation import get_incremental_analysis
 from core.registry import ChatPlatform
@@ -112,19 +111,12 @@ async def get_grooming_analysis(
 
 
 @router.websocket("/ws")
-async def alerts_websocket(websocket: WebSocket) -> None:
-    token = websocket.query_params.get("token")
-    if not token:
-        await websocket.close(code=4401)
-        return
-
-    db = SessionLocal()
+async def alerts_websocket(
+    websocket: WebSocket,
+    parent: Parent = Depends(get_current_parent),
+    db: Session = Depends(get_db),
+) -> None:
     try:
-        parent = get_parent_from_token(db, token)
-        if parent is None:
-            await websocket.close(code=4401)
-            return
-
         await alert_manager.connect(parent.id, websocket)
         try:
             while True:

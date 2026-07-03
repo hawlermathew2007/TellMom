@@ -1,17 +1,11 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { AlertWithExplanation } from "../../lib/parseAlert";
 import { ChildAccountResponse } from "../../apis";
 import { formatDistanceToNow, format } from "date-fns";
 import { 
   Search, 
-  Filter, 
-  ChevronDown, 
   Check, 
   ChevronRight, 
-  MessageSquare,
-  Volume2,
-  Bell,
-  ArrowUpDown,
   AlertTriangle,
   ChevronLeft
 } from "lucide-react";
@@ -109,7 +103,7 @@ export default function AlertsPage({
         const childMatches = childFilter === "all" || String(alert.childAccountId) === childFilter;
 
         // Severity filter
-        const severityMatches = severityFilter === "all" || getSeverityCategory(alert.probability) === severityFilter;
+        const severityMatches = severityFilter === "all" || getSeverityCategory(alert.probability!) === severityFilter;
 
         // Status filter
         const statusMatches = 
@@ -124,7 +118,7 @@ export default function AlertsPage({
         if (sortField === "date") {
           comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         } else if (sortField === "risk") {
-          comparison = b.probability - a.probability;
+          comparison = b.probability! - a.probability!;
         }
         return sortOrder === "desc" ? comparison : -comparison;
       });
@@ -287,7 +281,7 @@ export default function AlertsPage({
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3">
             {paginatedAlerts.map((alert) => {
-              const risk = getRiskDetails(alert.probability);
+              const risk = getRiskDetails(alert.probability!);
               const processedCount = alert.messages ? alert.messages.length : 0;
               const hasAnalysis = alert.detectedStages.length > 0;
 
@@ -348,7 +342,7 @@ export default function AlertsPage({
                   <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-3 shrink-0">
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${risk.colorClass}`}>
-                        {risk.text} ({Math.round(alert.probability * 100)}%)
+                        {risk.text} ({Math.round(alert.probability! * 100)}%)
                       </span>
                     </div>
 

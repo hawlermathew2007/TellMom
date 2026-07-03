@@ -1,4 +1,3 @@
-import React from "react";
 import { AlertCircle, RefreshCw, Archive } from "lucide-react";
 
 // Standard Shimmer effect skeleton

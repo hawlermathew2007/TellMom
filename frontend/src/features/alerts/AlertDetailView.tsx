@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { AlertWithExplanation } from "../../lib/parseAlert";
-import { ChildAccountResponse, ChatMessageResponse } from "../../apis";
-import { getApis } from "../../apis/client";
-import { playAlertSound } from "../../lib/sound";
+import { ChildAccountResponse } from "../../apis";
 import ConversationViewer from "./ConversationViewer";
 import AiAnalysisPanel from "./AiAnalysisPanel";
 import { NewlyDetectedStage } from "../../apis/models/NewlyDetectedStage";
@@ -11,7 +9,6 @@ import {
   MessageSquare, 
   Sparkles, 
   Check, 
-  ChevronRight,
   ShieldCheck
 } from "lucide-react";
 

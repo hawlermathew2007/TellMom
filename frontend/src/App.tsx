@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getApis, getToken, clearToken, fetchAlerts, acknowledgeAlertWithExplanation } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
 import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
@@ -82,10 +82,13 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     // Check if running on Vite development port 5173, fallback to localhost:8000, otherwise current host
-    const host = window.location.port === "5173" ? "localhost:8000" : window.location.host;
-    const wsUrl = `${protocol}://${host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
+    // const host = window.location.port === "5173" ? import.meta.env.VITE_API_HOST : window.location.host;
+    // const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    // const wsUrl = `${protocol}://${host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://45.151.155.170:8000/api/alerts/ws`;
 
     const connectSocket = () => {
       const ws = new WebSocket(wsUrl);

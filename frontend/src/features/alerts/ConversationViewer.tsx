@@ -1,15 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { ChatMessageResponse } from "../../apis";
 import { NewlyDetectedStage } from "../../apis/models/NewlyDetectedStage";
 import { format } from "date-fns";
 import { 
   Search, 
-  ArrowUp, 
-  ArrowDown, 
   ShieldAlert, 
-  Clock, 
   CheckCircle,
-  HelpCircle,
   AlertCircle
 } from "lucide-react";
 
@@ -221,7 +217,7 @@ export default function ConversationViewer({
                 : "";
 
             // Message processing indicator (all historical messages in database are already processed by definition)
-            const isProcessed = true; // In alerts view, they are all processed database alerts
+            // const isProcessed = true; // In alerts view, they are all processed database alerts
 
             return (
               <div key={msg.id} className="space-y-2">

@@ -13,7 +13,6 @@ import {
   Compass, 
   User,
   Loader2,
-  AlertTriangle
 } from "lucide-react";
 
 interface ChildrenManagementProps {
@@ -90,7 +89,7 @@ export default function ChildrenManagement({ children, onRefresh }: ChildrenMana
     setError("");
 
     try {
-      await getApis().children.updateChildApiChildrenPut({
+      await getApis().children.updateChildApiChildrenChildIdPut({
         childId,
         childAccountUpdate: {
           platformUserId: editPlatformUserId.trim(),

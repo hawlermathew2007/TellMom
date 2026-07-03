@@ -1,4 +1,3 @@
-import React from "react";
 import { AlertWithExplanation } from "../../lib/parseAlert";
 import { ChildAccountResponse } from "../../apis";
 import { 
@@ -6,7 +5,6 @@ import {
   MessageSquare, 
   AlertTriangle, 
   ShieldAlert, 
-  Clock, 
   ArrowRight,
   TrendingUp,
   Activity
@@ -39,12 +37,12 @@ export default function DashboardView({
   const activeAlertsCount = activeAlerts.length;
 
   const highRiskAlertsCount = alerts.filter(
-    (a) => !a.acknowledged && a.probability >= 0.5
+    (a) => !a.acknowledged && a.probability! >= 0.5
   ).length;
 
   // Let's assume an alert has pending messages to be analyzed if there are messages and we haven't continued analysis
   const pendingAnalysesCount = alerts.filter(
-    (a) => !a.acknowledged && a.probability > 0.3
+    (a) => !a.acknowledged && a.probability! > 0.3
   ).length;
 
   const recentAlerts = alerts.slice(0, 5);
@@ -247,7 +245,7 @@ export default function DashboardView({
             ) : (
               <div className="divide-y divide-slate-800/60">
                 {recentAlerts.map((alert) => {
-                  const risk = getRiskLabel(alert.probability);
+                  const risk = getRiskLabel(alert.probability!);
                   return (
                     <div 
                       key={alert.id} 

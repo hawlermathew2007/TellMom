@@ -6,11 +6,6 @@ import {
   VolumeX, 
   Sun, 
   Moon, 
-  Clock, 
-  Bell, 
-  BellOff, 
-  Settings,
-  RefreshCw
 } from "lucide-react";
 
 interface SettingsViewProps {
