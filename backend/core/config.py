@@ -3,8 +3,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-COLAB_TCP_HOST = os.getenv("COLAB_TCP_HOST", "localhost")
-COLAB_TCP_PORT = int(os.getenv("COLAB_TCP_PORT", "9999"))
 CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD", "1234")
 CLASSIFIER_JWT_SECRET = os.getenv("CLASSIFIER_JWT_SECRET", "verysecret")
 CLASSIFIER_JWT_EXPIRE_HOURS = 4

@@ -67,6 +67,12 @@ export interface AlertResponse {
     messagePreview: string;
     /**
      * 
+     * @type {number}
+     * @memberof AlertResponse
+     */
+    probability: number;
+    /**
+     * 
      * @type {boolean}
      * @memberof AlertResponse
      */
@@ -77,12 +83,6 @@ export interface AlertResponse {
      * @memberof AlertResponse
      */
     createdAt: Date;
-    /**
-     * Probability score (0-1) indicating confidence of the alert.
-     * @type {number}
-     * @memberof AlertResponse
-     */
-    probability?: number;
     /**
      * 
      * @type {Array<ChatMessageResponse>}
@@ -102,6 +102,7 @@ export function instanceOfAlertResponse(value: object): value is AlertResponse {
     if (!('platform' in value) || value['platform'] === undefined) return false;
     if ((!('serverId' in value) && !('server_id' in value)) || (value['serverId'] === undefined && value['server_id'] === undefined)) return false;
     if ((!('messagePreview' in value) && !('message_preview' in value)) || (value['messagePreview'] === undefined && value['message_preview'] === undefined)) return false;
+    if (!('probability' in value) || value['probability'] === undefined) return false;
     if (!('acknowledged' in value) || value['acknowledged'] === undefined) return false;
     if ((!('createdAt' in value) && !('created_at' in value)) || (value['createdAt'] === undefined && value['created_at'] === undefined)) return false;
     return true;
@@ -122,6 +123,7 @@ export function AlertResponseFromJSONTyped(json: any, ignoreDiscriminator: boole
         'platform': ChatPlatformFromJSON(json['platform']),
         'serverId': json['server_id'],
         'messagePreview': json['message_preview'],
+        'probability': json['probability'],
         'acknowledged': json['acknowledged'],
         'createdAt': (new Date(json['created_at'])),
         'messages': json['messages'] == null ? undefined : ((json['messages'] as Array<any>).map(ChatMessageResponseFromJSON)),
@@ -144,6 +146,7 @@ export function AlertResponseToJSONTyped(value?: AlertResponse | null, ignoreDis
         'platform': ChatPlatformToJSON(value['platform']),
         'server_id': value['serverId'],
         'message_preview': value['messagePreview'],
+        'probability': value['probability'],
         'acknowledged': value['acknowledged'],
         'created_at': value['createdAt'].toISOString(),
         'messages': value['messages'] == null ? undefined : ((value['messages'] as Array<any>).map(ChatMessageResponseToJSON)),

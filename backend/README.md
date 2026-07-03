@@ -21,8 +21,6 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 |----------|---------|
 | `DATABASE_URL` | `postgresql://tellmom:tellmom@localhost:5432/tellmom` |
 | `JWT_SECRET` | `change-me-in-production` |
-| `COLAB_TCP_HOST` | `localhost` |
-| `COLAB_TCP_PORT` | `9999` |
 | `CORS_ORIGINS` | `http://localhost:5173` |
 | `GROQ_API_KEY` | *(required for LLM grooming analysis)* |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` |

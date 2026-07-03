@@ -113,7 +113,7 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
             setTimeout(() => setSuccess(false), 2000);
 
         } catch (err: unknown) {
-            setError("Ingest call failed. Ensure backend API server is running at localhost:8000.");
+            setError("Ingest call failed. Ensure backend API server is running.");
             console.error(err);
         } finally {
             setIsLoading(false);
