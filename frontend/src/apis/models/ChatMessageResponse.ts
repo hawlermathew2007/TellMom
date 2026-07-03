@@ -22,6 +22,12 @@ import { mapValues } from '../runtime';
 export interface ChatMessageResponse {
     /**
      * 
+     * @type {number}
+     * @memberof ChatMessageResponse
+     */
+    id: number;
+    /**
+     * 
      * @type {string}
      * @memberof ChatMessageResponse
      */
@@ -44,6 +50,7 @@ export interface ChatMessageResponse {
  * Check if a given object implements the ChatMessageResponse interface.
  */
 export function instanceOfChatMessageResponse(value: object): value is ChatMessageResponse {
+    if (!('id' in value) || value['id'] === undefined) return false;
     if ((!('senderPlatformUserId' in value) && !('sender_platform_user_id' in value)) || (value['senderPlatformUserId'] === undefined && value['sender_platform_user_id'] === undefined)) return false;
     if (!('content' in value) || value['content'] === undefined) return false;
     if ((!('createdAt' in value) && !('created_at' in value)) || (value['createdAt'] === undefined && value['created_at'] === undefined)) return false;
@@ -60,6 +67,7 @@ export function ChatMessageResponseFromJSONTyped(json: any, ignoreDiscriminator:
     }
     return {
         
+        'id': json['id'],
         'senderPlatformUserId': json['sender_platform_user_id'],
         'content': json['content'],
         'createdAt': (new Date(json['created_at'])),
@@ -77,6 +85,7 @@ export function ChatMessageResponseToJSONTyped(value?: ChatMessageResponse | nul
 
     return {
         
+        'id': value['id'],
         'sender_platform_user_id': value['senderPlatformUserId'],
         'content': value['content'],
         'created_at': value['createdAt'].toISOString(),

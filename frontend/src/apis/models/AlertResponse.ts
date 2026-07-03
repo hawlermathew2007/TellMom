@@ -78,6 +78,12 @@ export interface AlertResponse {
      */
     createdAt: Date;
     /**
+     * Probability score (0-1) indicating confidence of the alert.
+     * @type {number}
+     * @memberof AlertResponse
+     */
+    probability?: number;
+    /**
      * 
      * @type {Array<ChatMessageResponse>}
      * @memberof AlertResponse

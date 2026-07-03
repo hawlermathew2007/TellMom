@@ -4,6 +4,7 @@ from core.registry import ChatPlatform
 
 
 class ChatMessageResponse(BaseModel):
+    id: int
     sender_platform_user_id: str
     content: str
     created_at: datetime
