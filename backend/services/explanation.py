@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
 from core import config
-from database.models import FlagExplanation, IncrementalAnalysis, ChatMessage
+from database.models import IncrementalAnalysis, ChatMessage, Alert
 from schemas.grooming import IncrementalAnalysisResponse, NewlyDetectedStage
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,6 @@ def _get_or_create_incremental_analysis(
             server_id=server_id,
             detected_stages=[],
             last_processed_message_count=0,
-            accumulated_analysis={},
             unprocessed_message_count=0,
         )
         db.add(record)
@@ -96,9 +95,14 @@ def _get_or_create_incremental_analysis(
     return record
 
 
-def _get_undetected_stages(detected_stages: list[str]) -> list[str]:
+def _get_undetected_stages(detected_stages: list) -> list[str]:
     """Return list of stages that have not yet been detected."""
-    return [s for s in ALL_STAGES if s not in detected_stages]
+    # detected_stages is now a list of dicts with 'stage', 'confidence', 'message_id'
+    detected_stage_names = {
+        stage.get("stage") if isinstance(stage, dict) else stage 
+        for stage in detected_stages
+    }
+    return [s for s in ALL_STAGES if s not in detected_stage_names]
 
 
 def _build_incremental_prompt(undetected_stages: list[str]) -> str:
@@ -215,9 +219,24 @@ async def get_incremental_analysis(
         response = await _call_groq_incremental(conversation, undetected)
 
         # Update detected stages and last processed count.
+        # Convert detected_stages to set of stage names for comparison
+        detected_stage_names = {
+            stage.get("stage") if isinstance(stage, dict) else stage 
+            for stage in incremental.detected_stages
+        }
+        
+        # Build new stages list with full objects
+        new_stages_list = list(incremental.detected_stages) if incremental.detected_stages else []
         for new_stage in response.new_stages:
-            if new_stage.stage not in incremental.detected_stages:
-                incremental.detected_stages.append(new_stage.stage)
+            if new_stage.stage not in detected_stage_names:
+                new_stages_list.append({
+                    "stage": new_stage.stage,
+                    "confidence": new_stage.confidence,
+                    "message_id": new_stage.message_id,
+                })
+        
+        # Reassign to trigger SQLAlchemy change detection
+        incremental.detected_stages = new_stages_list
 
         incremental.last_processed_message_count = total_message_count
         incremental.unprocessed_message_count = 0
@@ -225,6 +244,19 @@ async def get_incremental_analysis(
 
         db.commit()
         db.refresh(incremental)
+        
+        # Also update the Alert object if it exists
+        alert = (
+            db.query(Alert)
+            .filter(
+                Alert.platform == platform,
+                Alert.server_id == server_id,
+            )
+            .first()
+        )
+        if alert:
+            alert.detected_stages = new_stages_list
+            db.commit()
 
         return response
 
@@ -253,26 +285,7 @@ def get_detected_stages(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-) -> list[str]:
+) -> list:
     """Get list of already-detected stages for a server."""
     incremental = _get_or_create_incremental_analysis(db, platform, server_id)
     return incremental.detected_stages
-
-
-def lookup_explanation_payload(
-    db: Session,
-    platform: ChatPlatform,
-    server_id: str,
-) -> dict | None:
-    """Lookup the full accumulated analysis (legacy support)."""
-    row = (
-        db.query(FlagExplanation)
-        .filter(
-            FlagExplanation.platform == platform,
-            FlagExplanation.server_id == server_id,
-        )
-        .first()
-    )
-    if row is None:
-        return None
-    return row.explanation

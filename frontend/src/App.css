@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 22% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 22% 18%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 222 22% 18%;
+
+    --muted: 210 18% 95%;
+    --muted-foreground: 215 16% 46%;
+
+    --accent: 212 25% 92%;
+    --accent-foreground: 222 22% 18%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 18% 88%;
+    --input: 214 18% 88%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 22% 10%;
+    --foreground: 210 20% 94%;
+
+    --card: 222 22% 13%;
+    --card-foreground: 210 20% 94%;
+
+    --popover: 222 22% 13%;
+    --popover-foreground: 210 20% 94%;
+
+    --primary: 217 91% 65%;
+    --primary-foreground: 222 22% 10%;
+
+    --secondary: 222 18% 18%;
+    --secondary-foreground: 210 20% 94%;
+
+    --muted: 222 18% 18%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 222 18% 20%;
+    --accent-foreground: 210 20% 94%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 222 16% 22%;
+    --input: 222 16% 22%;
+    --ring: 217 91% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased font-sans transition-colors duration-300;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/45 transition-colors;
+}
+
+/* Custom animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}

@@ -11,6 +11,7 @@ Name | Type
 `platform` | [ChatPlatform](ChatPlatform.md)
 `serverId` | string
 `messagePreview` | string
+`probability` | number
 `acknowledged` | boolean
 `createdAt` | Date
 `messages` | [Array&lt;ChatMessageResponse&gt;](ChatMessageResponse.md)
@@ -27,6 +28,7 @@ const example = {
   "platform": null,
   "serverId": null,
   "messagePreview": null,
+  "probability": null,
   "acknowledged": null,
   "createdAt": null,
   "messages": null,

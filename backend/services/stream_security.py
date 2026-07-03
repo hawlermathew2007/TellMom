@@ -13,13 +13,13 @@ def create_stream_token() -> str:
         "iat": now,
         "exp": now + timedelta(hours=config.CLASSIFIER_JWT_EXPIRE_HOURS),
     }
-    return jwt.encode(payload, config.CLASSIFIER_JWT_SECRET, algorithm=ALGORITHM)
+    return jwt.encode(payload, config.JWT_SECRET, algorithm=ALGORITHM)
 
 
 def decode_stream_token(token: str) -> dict:
     try:
         payload = jwt.decode(
-            token, config.CLASSIFIER_JWT_SECRET, algorithms=[ALGORITHM]
+            token, config.JWT_SECRET, algorithms=[ALGORITHM]
         )
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(status_code=401, detail="Token expired") from exc

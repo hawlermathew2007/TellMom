@@ -1,4 +1,4 @@
-import { AlertsApi, AuthApi, ChildrenApi, Configuration, ResponseError } from "./index";
+import { AlertsApi, AuthApi, ChildrenApi, DefaultApi, Configuration, ResponseError } from "./index";
 import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
 
 const TOKEN_KEY = "tellmom_token";
@@ -18,6 +18,7 @@ function createApis() {
     auth: new AuthApi(config),
     children: new ChildrenApi(config),
     alerts: new AlertsApi(config),
+    ingests: new DefaultApi(config),
   };
 }
 

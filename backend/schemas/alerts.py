@@ -4,6 +4,7 @@ from core.registry import ChatPlatform
 
 
 class ChatMessageResponse(BaseModel):
+    id: int
     sender_platform_user_id: str
     content: str
     created_at: datetime
@@ -19,6 +20,7 @@ class AlertResponse(BaseModel):
     message_preview: str
     probability: float
     acknowledged: bool
+    detected_stages: list = []
     created_at: datetime
     messages: list[ChatMessageResponse] = []
 
