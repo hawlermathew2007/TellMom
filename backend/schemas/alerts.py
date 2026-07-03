@@ -20,6 +20,7 @@ class AlertResponse(BaseModel):
     message_preview: str
     probability: float
     acknowledged: bool
+    detected_stages: list = []
     created_at: datetime
     messages: list[ChatMessageResponse] = []
 

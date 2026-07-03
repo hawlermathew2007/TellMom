@@ -69,7 +69,6 @@ def count_server_messages(
     )
 
 
-# TODO: check for the overlap alert feature
 async def notify_parents_in_chat(
     db: Session,
     platform: ChatPlatform,
@@ -91,11 +90,11 @@ async def notify_parents_in_chat(
         return
 
     parent_ids: set[int] = set()
-    created_alerts: list[Alert] = []
+    alerts_to_notify: list[Alert] = []
 
     # TODO: add a read state for the alert also
-    # Check for recent alerts to avoid duplicates
-    recent_alerts = (
+    # Check for existing alerts
+    existing_alerts = (
         db.query(Alert)
         .filter(
             Alert.platform == platform,
@@ -103,28 +102,33 @@ async def notify_parents_in_chat(
         )
         .all()
     )
-    recent_child_ids = {alert.child_account_id for alert in recent_alerts}
+    existing_alerts_by_child = {alert.child_account_id: alert for alert in existing_alerts}
 
     for child in children:
-        # Skip if alert already exists for this child in this server within past hour
-        if child.id in recent_child_ids:
-            continue
-
-        alert = Alert(
-            parent_id=child.parent_id,
-            child_account_id=child.id,
-            platform=platform,
-            server_id=server_id,
-            message_preview=preview[:500],
-            probability=probability,
-        )
-        db.add(alert)
-        created_alerts.append(alert)
+        if child.id in existing_alerts_by_child:
+            # Update existing alert
+            alert = existing_alerts_by_child[child.id]
+            alert.message_preview = preview[:500]
+            alert.probability = probability
+            alerts_to_notify.append(alert)
+        else:
+            # Create new alert
+            alert = Alert(
+                parent_id=child.parent_id,
+                child_account_id=child.id,
+                platform=platform,
+                server_id=server_id,
+                message_preview=preview[:500],
+                probability=probability,
+            )
+            db.add(alert)
+            alerts_to_notify.append(alert)
+        
         parent_ids.add(child.parent_id)
 
     db.commit()
 
-    for alert in created_alerts:
+    for alert in alerts_to_notify:
         db.refresh(alert)
         # Fetch conversation messages to link them together
         messages = (

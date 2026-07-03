@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "generate-api": "npx openapi-generator-cli generate -i http://45.151.155.170:8000/openapi.json -o ./src/apis -g typescript-fetch && find src/apis -name '*.ts' ! -name 'client.ts' -exec sh -c 'grep -q \"@ts-nocheck\" \"$1\" || sed -i \"1i// @ts-nocheck\" \"$1\"' _ {} \\;"
+    "generate-api": "npx openapi-generator-cli generate -i http://localhost:8000/openapi.json -o ./src/apis -g typescript-fetch && find src/apis -name '*.ts' ! -name 'client.ts' -exec sh -c 'grep -q \"@ts-nocheck\" \"$1\" || sed -i \"1i// @ts-nocheck\" \"$1\"' _ {} \\;"
   },
   "dependencies": {
     "@openapitools/openapi-generator-cli": "^2.39.1",
