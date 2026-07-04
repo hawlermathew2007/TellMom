@@ -83,11 +83,38 @@ export default function App() {
         if (!token) return;
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         // const wsUrl = `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
-        const wsUrl = `${protocol}://45.151.155.170:8000/api/alerts/ws?token=${encodeURIComponent(token)}`;
+        const wsUrl = `${protocol}://45.151.155.170:8000/api/alerts/ws`;
 
         const connectSocket = () => {
+            let hasAuthenticated = false
             const ws = new WebSocket(wsUrl);
             socketRef.current = ws;
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "auth", token }));
+            }
+
+            // First message will be used as "auth tag"
+            ws.onmessage = (event) => {
+                let data: any;
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    console.error("Failed to parse message", event.data);
+                    return;
+                }
+
+                if (!hasAuthenticated) {
+                    if (data.type === "auth_ok") {
+                        hasAuthenticated = true;
+                        console.log("WebSocket stream authenticated");
+                    } else {
+                        console.error("Expected auth_ok, got:", data);
+                        ws.close();
+                    }
+                    return;
+                }
+            }
 
             ws.onmessage = (event) => {
                 try {

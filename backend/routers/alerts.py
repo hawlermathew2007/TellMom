@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
+import json
 
 from database.models import Alert, Parent, ChatMessage
 from database.session import SessionLocal, get_db
@@ -9,6 +10,7 @@ from schemas.grooming import IncrementalAnalysisResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager
 from services.explanation import get_incremental_analysis
+from services.stream_security import decode_stream_token
 from core.registry import ChatPlatform
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -113,11 +115,27 @@ async def get_grooming_analysis(
 
 @router.websocket("/ws")
 async def alerts_websocket(websocket: WebSocket) -> None:
-    token = websocket.query_params.get("token")
-    if not token:
+    await websocket.accept()
+    try:
+        first_message = await websocket.receive_text()
+        payload = json.loads(first_message)
+        if payload.get("type") != "auth":
+            raise ValueError("First message must be of type 'auth'")
+        token = payload["token"]
+    except (json.JSONDecodeError, KeyError, ValueError):
+        await websocket.close(code=4400, reason="Broken auth message.")
+        return
+
+    try:
+        _ = decode_stream_token(token)
+    except HTTPException:
         await websocket.close(code=4401)
         return
 
+    # Let the server know that authentication done
+    await websocket.send_text(json.dumps({"type": "auth_ok"}))
+
+    # Start WS
     db = SessionLocal()
     try:
         parent = get_parent_from_token(db, token)

@@ -36,7 +36,7 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 - `GET/POST/PUT/DELETE /api/children` — manage child platform accounts
 - `GET /api/alerts` — list alerts for authenticated parent
 - `POST /api/alerts/{id}/acknowledge` — acknowledge alert
-- `WS /api/alerts/ws?token=...` — live alert stream
+- `WS /api/alerts/ws` — live alert stream
 - `POST /api/ingest` — ingest a single message (`platform`, `user_id`, `server_id`, `message`). Messages are cached (24h TTL) and stored in PostgreSQL. The classifier runs only once a server has at least `CLASSIFIER_MIN_MESSAGES` messages in the last 24 hours; requests are queued so only one classification runs at a time.
 
 When a user is flagged during ingest, all parents with registered children in the same chat group are notified via WebSocket and persisted alerts.
