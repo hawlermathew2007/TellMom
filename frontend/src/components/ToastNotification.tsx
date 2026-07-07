@@ -51,7 +51,7 @@ function ToastCard({
       onClose();
     }, 6000);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, toast.title, toast.message]);
 
   const handleCardClick = () => {
     if (toast.alertId && onNavigate) {

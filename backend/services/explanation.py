@@ -34,27 +34,13 @@ def _extract_json(raw: str) -> dict:
     return json.loads(text)
 
 
-def _get_or_create_incremental_analysis(
-    db: Session, alert_id: str
-) -> IncrementalAnalysis:
-    """Get or create an IncrementalAnalysis record."""
-    record = (
+def _get_incremental_analysis(db: Session, alert_id: str) -> IncrementalAnalysis | None:
+    incremental = (
         db.query(IncrementalAnalysis)
         .filter(IncrementalAnalysis.alert_id == alert_id)
         .first()
     )
-
-    if record is None:
-        record = IncrementalAnalysis(
-            alert_id=alert_id,
-            detected_stages=[],
-            unprocessed_message_count=0,
-        )
-        db.add(record)
-        db.commit()
-        db.refresh(record)
-
-    return record
+    return incremental
 
 
 def _get_undetected_stages(detected_stages: list) -> list[str]:
@@ -152,7 +138,11 @@ async def get_incremental_analysis(
     Returns only newly detected stages, or None if analysis failed.
     """
     # Format conversation with only new messages since the last analysis.
-    incremental = _get_or_create_incremental_analysis(db, str(alert.id))
+    incremental = _get_incremental_analysis(db, str(alert.id))
+
+    if incremental is None:
+        logger.warning(f"Stray alert with no analysis associated: {alert.id}")
+        return None
 
     # Get undetected stages
     undetected = _get_undetected_stages(incremental.detected_stages)
@@ -171,7 +161,7 @@ async def get_incremental_analysis(
 
         lines = ["Conversation:"]
         messages = msg_map[alert.child_account_id] + msg_map[alert.target_id]
-        messages = messages[incremental.last_processed_count:]
+        messages = messages[incremental.last_processed_count :]
 
         for msg in messages:
             lines.append(f"[{msg.id}] {msg.content}")
@@ -227,13 +217,8 @@ async def get_incremental_analysis(
 
 def increment_unprocessed_count(db: Session, alert_id: str) -> None:
     """Increment the unprocessed message count for a server."""
-    incremental = _get_or_create_incremental_analysis(db, alert_id)
+    incremental = _get_incremental_analysis(db, alert_id)
+    assert incremental is not None
     incremental.unprocessed_message_count += 1
     incremental.updated_at = datetime.now(UTC)
     db.commit()
-
-
-def get_detected_stages(db: Session, alert_id: str) -> list:
-    """Get list of already-detected stages for a server."""
-    incremental = _get_or_create_incremental_analysis(db, alert_id)
-    return incremental.detected_stages

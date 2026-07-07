@@ -128,35 +128,6 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [localHistory]);
 
-    // Keybindings to switch sender role
-    React.useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const activeEl = document.activeElement;
-            if (
-                activeEl &&
-                (activeEl.tagName === "INPUT" ||
-                    activeEl.tagName === "TEXTAREA" ||
-                    activeEl.tagName === "SELECT" ||
-                    (activeEl as HTMLElement).isContentEditable)
-            ) {
-                return;
-            }
-
-            if (e.key === "1") {
-                setSenderRole("suspect");
-            } else if (e.key === "2") {
-                setSenderRole("child");
-            } else if (e.key === "3") {
-                setSenderRole("other");
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-        };
-    }, []);
-
     return (
         <div className="space-y-6">
             {/* Top Header */}

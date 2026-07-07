@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
-from database.models import Alert, ChatMessage, ChildAccount
+from database.models import Alert, ChatMessage, ChildAccount, IncrementalAnalysis
 from schemas.alerts import AlertResponse, ChatMessageResponse
 from services.notifications import alert_manager
 
@@ -75,9 +75,34 @@ async def notify_parent(
         preview=preview,
         probability=probability,
     )
+    # NOTE: force alchemy to populate alert.id (not done for new entries)
+    db.flush()
+    _upsert_analysis(db=db, alert_id=str(alert.id), unprocessed_count=len(messages))
     db.commit()
     await _send_alert_notification(db, alert, messages)
     return alert
+
+
+def _upsert_analysis(
+    *, db: Session, alert_id: str, unprocessed_count: int
+) -> IncrementalAnalysis:
+    record = (
+        db.query(IncrementalAnalysis)
+        .filter(IncrementalAnalysis.alert_id == alert_id)
+        .first()
+    )
+
+    if record is None:
+        record = IncrementalAnalysis(
+            alert_id=alert_id,
+            detected_stages=[],
+            unprocessed_message_count=unprocessed_count,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+
+    return record
 
 
 def _upsert_alert(

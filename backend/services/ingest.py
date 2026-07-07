@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime
+from dataclasses import dataclass
 from database.models import ChildAccount
 from fastapi import HTTPException
 from services.classifier_stream import classifier_stream
@@ -18,8 +20,15 @@ from core.cache import message_cache, sync_message_cache
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class MessageCacheItem:
+    id: str
     user_id: str
+    platform: ChatPlatform
+    server_id: str
+    user_id: str
+    content: str
+    created_at: datetime
 
 
 async def process_ingest(
@@ -42,9 +51,13 @@ async def process_ingest(
     cache = message_cache.get(server_id)
     assert cache is not None
 
+    # convert to built-in data type for cache storage
+    msg = MessageCacheItem(
+        **{col.name: getattr(msg, col.name) for col in msg.__table__.columns}
+    )
     cache["collection"].append(msg)
     cache["map"][msg.user_id].append(msg)
-    messages = message_cache.get(server_id)["collection"]
+    messages = cache["collection"]
 
     id_to_chats = defaultdict(list)
     for msg in messages:
@@ -61,12 +74,11 @@ async def process_ingest(
             if k == child_id:
                 continue
 
-            conversation = v + child_messages
-            if len(conversation) < config.CLASSIFIER_MIN_MESSAGES:
+            if len(v) + len(child_messages) < config.CLASSIFIER_MIN_MESSAGES:
                 continue
 
+            conversation = v + child_messages
             conversation.sort(key=lambda x: x.created_at)
-
             raw = " ".join([m.content for m in conversation])
 
             try:
@@ -81,8 +93,8 @@ async def process_ingest(
 
             # For debugging only
             logger.warning(
-                f"Classification result: {result.has_pedo}",
-                f"Probability: {result.probability}",
+                f"Classification result: {bool(result.has_pedo)}"
+                f"Probability: {float(result.probability)}"
             )
 
             if not result.has_pedo:
@@ -103,4 +115,4 @@ async def process_ingest(
                 messages=conversation,
             )
 
-            increment_unprocessed_count(db, alert.id)
+            increment_unprocessed_count(db, str(alert.id))
