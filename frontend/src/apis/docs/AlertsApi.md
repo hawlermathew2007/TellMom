@@ -5,7 +5,7 @@ All URIs are relative to *http://localhost*
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
 | [**acknowledgeAlertApiAlertsAlertIdAcknowledgePost**](AlertsApi.md#acknowledgealertapialertsalertidacknowledgepost) | **POST** /api/alerts/{alert_id}/acknowledge | Acknowledge Alert |
-| [**getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet**](AlertsApi.md#getgroominganalysisapialertsalertidgroominganalysisget) | **GET** /api/alerts/{alert_id}/grooming-analysis | Get Grooming Analysis |
+| [**getGroomingAnalysisApiAlertsAlertIdAnalysisGet**](AlertsApi.md#getgroominganalysisapialertsalertidanalysisget) | **GET** /api/alerts/{alert_id}/analysis | Get Grooming Analysis |
 | [**listAlertsApiAlertsGet**](AlertsApi.md#listalertsapialertsget) | **GET** /api/alerts | List Alerts |
 
 
@@ -80,9 +80,9 @@ example().catch(console.error);
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet
+## getGroomingAnalysisApiAlertsAlertIdAnalysisGet
 
-> IncrementalAnalysisResponse getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(alertId)
+> IncrementalAnalysisResponse getGroomingAnalysisApiAlertsAlertIdAnalysisGet(alertId)
 
 Get Grooming Analysis
 
@@ -95,7 +95,7 @@ import {
   Configuration,
   AlertsApi,
 } from '';
-import type { GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest } from '';
+import type { GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -108,10 +108,10 @@ async function example() {
   const body = {
     // number
     alertId: 56,
-  } satisfies GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest;
+  } satisfies GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest;
 
   try {
-    const data = await api.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(body);
+    const data = await api.getGroomingAnalysisApiAlertsAlertIdAnalysisGet(body);
     console.log(data);
   } catch (error) {
     console.error(error);

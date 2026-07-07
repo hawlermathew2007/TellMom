@@ -7,7 +7,7 @@
 Name | Type
 ------------ | -------------
 `id` | number
-`senderPlatformUserId` | string
+`userId` | string
 `content` | string
 `createdAt` | Date
 
@@ -19,7 +19,7 @@ import type { ChatMessageResponse } from ''
 // TODO: Update the object below with actual values
 const example = {
   "id": null,
-  "senderPlatformUserId": null,
+  "userId": null,
   "content": null,
   "createdAt": null,
 } satisfies ChatMessageResponse

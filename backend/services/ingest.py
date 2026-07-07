@@ -39,6 +39,9 @@ async def process_ingest(
 
     # Load messages of conversation from cache / DB if expired
     sync_message_cache(db, platform, server_id)
+    cache = message_cache.get(server_id)
+    assert cache is not None
+
     cache["collection"].append(msg)
     cache["map"][msg.user_id].append(msg)
     messages = message_cache.get(server_id)["collection"]
