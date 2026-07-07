@@ -9,7 +9,6 @@ from schemas.grooming import IncrementalAnalysisResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager
 from services.explanation import get_incremental_analysis
-from core.registry import ChatPlatform
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -74,7 +73,7 @@ def acknowledge_alert(
     return alert_res
 
 
-@router.get("/{alert_id}/grooming-analysis", response_model=IncrementalAnalysisResponse)
+@router.get("/{alert_id}/analysis", response_model=IncrementalAnalysisResponse)
 async def get_grooming_analysis(
     alert_id: int,
     parent: Parent = Depends(get_current_parent),
@@ -93,16 +92,8 @@ async def get_grooming_analysis(
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    # Parse platform from alert
-    try:
-        platform = ChatPlatform(
-            alert.platform.value if hasattr(alert.platform, "value") else alert.platform
-        )
-    except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail="Invalid platform in alert")
-
     # Get incremental analysis
-    result = await get_incremental_analysis(db, platform, alert.server_id)
+    result = await get_incremental_analysis(db, alert)
 
     if result is None:
         # Analysis failed or threshold not met
@@ -111,6 +102,7 @@ async def get_grooming_analysis(
     return result
 
 
+# TODO: change this to authentication header also
 @router.websocket("/ws")
 async def alerts_websocket(websocket: WebSocket) -> None:
     token = websocket.query_params.get("token")

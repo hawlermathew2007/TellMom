@@ -13,6 +13,7 @@ Name | Type
 `messagePreview` | string
 `probability` | number
 `acknowledged` | boolean
+`detectedStages` | Array&lt;any&gt;
 `createdAt` | Date
 `messages` | [Array&lt;ChatMessageResponse&gt;](ChatMessageResponse.md)
 
@@ -30,6 +31,7 @@ const example = {
   "messagePreview": null,
   "probability": null,
   "acknowledged": null,
+  "detectedStages": null,
   "createdAt": null,
   "messages": null,
 } satisfies AlertResponse

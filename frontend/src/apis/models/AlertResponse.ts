@@ -79,6 +79,12 @@ export interface AlertResponse {
     acknowledged: boolean;
     /**
      * 
+     * @type {Array<any>}
+     * @memberof AlertResponse
+     */
+    detectedStages?: Array<any>;
+    /**
+     * 
      * @type {Date}
      * @memberof AlertResponse
      */
@@ -125,6 +131,7 @@ export function AlertResponseFromJSONTyped(json: any, ignoreDiscriminator: boole
         'messagePreview': json['message_preview'],
         'probability': json['probability'],
         'acknowledged': json['acknowledged'],
+        'detectedStages': json['detected_stages'] == null ? undefined : json['detected_stages'],
         'createdAt': (new Date(json['created_at'])),
         'messages': json['messages'] == null ? undefined : ((json['messages'] as Array<any>).map(ChatMessageResponseFromJSON)),
     };
@@ -148,6 +155,7 @@ export function AlertResponseToJSONTyped(value?: AlertResponse | null, ignoreDis
         'message_preview': value['messagePreview'],
         'probability': value['probability'],
         'acknowledged': value['acknowledged'],
+        'detected_stages': value['detectedStages'],
         'created_at': value['createdAt'].toISOString(),
         'messages': value['messages'] == null ? undefined : ((value['messages'] as Array<any>).map(ChatMessageResponseToJSON)),
     };

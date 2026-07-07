@@ -124,11 +124,8 @@ class WSClientThread(threading.Thread):
         inference_queue: queue.Queue,
     ):
         super().__init__(name="WSClientThread", daemon=True)
-        # TODO: change this to authorization header
         self.url = url
-        self.header = [
-            f"Authorization: Bearer {token}",
-        ]
+        self.header = [f"Authorization: Bearer {token}"]
         self.inference_queue = inference_queue
         self._stop_event = threading.Event()
         self._ws = websocket.WebSocketApp(

@@ -62,7 +62,7 @@ class ChatMessage(Base):
         SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
     )
     server_id: Mapped[str] = mapped_column(String(255), index=True)
-    sender_platform_user_id: Mapped[str] = mapped_column(String(255), index=True)
+    user_id: Mapped[str] = mapped_column(String(255), index=True)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -81,6 +81,7 @@ class Alert(Base):
         SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
     )
     server_id: Mapped[str] = mapped_column(String(255))
+    target_id: Mapped[str] = mapped_column(String(255))
     message_preview: Mapped[str] = mapped_column(Text)
     probability: Mapped[float] = mapped_column(nullable=False, default=0.0)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -88,6 +89,7 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
 
     parent: Mapped["Parent"] = relationship(back_populates="alerts")
     child_account: Mapped["ChildAccount"] = relationship()
@@ -96,19 +98,12 @@ class Alert(Base):
 class IncrementalAnalysis(Base):
     __tablename__ = "incremental_analyses"
     __table_args__ = (
-        UniqueConstraint(
-            "platform", "server_id", name="uq_incremental_analysis_server"
-        ),
+        UniqueConstraint("alert_id", name="uq_incremental_analysis_alert_id"),
     )
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    platform: Mapped[ChatPlatform] = mapped_column(
-        SAEnum(ChatPlatform, values_callable=lambda x: [e.value for e in x])
-    )
-    server_id: Mapped[str] = mapped_column(String(255), index=True)
+    alert_id: Mapped[str] = mapped_column(primary_key=True)
     detected_stages: Mapped[list] = mapped_column(JSON, default=list)
-    last_processed_message_count: Mapped[int] = mapped_column(default=0)
     unprocessed_message_count: Mapped[int] = mapped_column(default=0)
+    last_processed_count: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

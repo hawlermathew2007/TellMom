@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta, timezone
-
 from sqlalchemy.orm import Session
 
 from core.registry import ChatPlatform
@@ -14,134 +12,123 @@ def add_message_db(
     server_id: str,
     user_id: str,
     message: str,
-) -> None:
-    db.add(
-        ChatMessage(
-            platform=platform,
-            server_id=server_id,
-            sender_platform_user_id=user_id,
-            content=message,
-        )
+) -> ChatMessage:
+    msg = ChatMessage(
+        platform=platform,
+        server_id=server_id,
+        user_id=user_id,
+        content=message,
     )
+    db.add(msg)
     db.commit()
-
-
-def load_server_chat_group(
-    db: Session,
-    platform: ChatPlatform,
-    server_id: str,
-    *,
-    max_age_hours: int,
-) -> dict[str, list[str]]:
-    since = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
-    rows = (
-        db.query(ChatMessage)
-        .filter(
-            ChatMessage.platform == platform,
-            ChatMessage.server_id == server_id,
-            ChatMessage.created_at >= since,
-        )
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-    chat_group: dict[str, list[str]] = {}
-    for row in rows:
-        chat_group.setdefault(row.sender_platform_user_id, []).append(row.content)
-    return chat_group
+    return msg
 
 
 def count_server_messages(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-    *,
-    max_age_hours: int,
 ) -> int:
-    since = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     return (
         db.query(ChatMessage)
         .filter(
             ChatMessage.platform == platform,
             ChatMessage.server_id == server_id,
-            ChatMessage.created_at >= since,
         )
         .count()
     )
 
 
-async def notify_parents_in_chat(
+def get_server_messages(
     db: Session,
     platform: ChatPlatform,
     server_id: str,
-    chat_group: dict[str, list[str]],
-    preview: str,
-    probability: float,
-) -> None:
-    participant_ids = set(chat_group.keys())
-    children = (
-        db.query(ChildAccount)
+) -> list[ChatMessage]:
+    return (
+        db.query(ChatMessage)
         .filter(
-            ChildAccount.platform == platform,
-            ChildAccount.platform_user_id.in_(participant_ids),
+            ChatMessage.platform == platform,
+            ChatMessage.server_id == server_id,
         )
+        .order_by(ChatMessage.created_at.asc())
         .all()
     )
-    if not children:
-        return
 
-    parent_ids: set[int] = set()
-    alerts_to_notify: list[Alert] = []
 
-    # TODO: add a read state for the alert also
-    # Check for existing alerts
-    existing_alerts = (
+async def notify_parent(
+    *,
+    db: Session,
+    platform: ChatPlatform,
+    child: ChildAccount,
+    target_id: str,
+    server_id: str,
+    preview: str,
+    probability: float,
+    messages: list[ChatMessage],
+) -> Alert:
+    alert = _upsert_alert(
+        db=db,
+        child=child,
+        target_id=target_id,
+        platform=platform,
+        server_id=server_id,
+        preview=preview,
+        probability=probability,
+    )
+    db.commit()
+    await _send_alert_notification(db, alert, messages)
+    return alert
+
+
+def _upsert_alert(
+    *,
+    db: Session,
+    child: ChildAccount,
+    target_id: str,
+    platform: ChatPlatform,
+    server_id: str,
+    preview: str,
+    probability: float,
+) -> Alert:
+    """Create a new alert for flagged child, or update it if one already exists for this server conversation."""
+    alert = (
         db.query(Alert)
         .filter(
             Alert.platform == platform,
             Alert.server_id == server_id,
+            Alert.child_account_id == child.id,
+            Alert.target_id == target_id,
         )
-        .all()
+        .one_or_none()
     )
-    existing_alerts_by_child = {alert.child_account_id: alert for alert in existing_alerts}
 
-    for child in children:
-        if child.id in existing_alerts_by_child:
-            # Update existing alert
-            alert = existing_alerts_by_child[child.id]
-            alert.message_preview = preview[:500]
-            alert.probability = probability
-            alerts_to_notify.append(alert)
-        else:
-            # Create new alert
-            alert = Alert(
-                parent_id=child.parent_id,
-                child_account_id=child.id,
-                platform=platform,
-                server_id=server_id,
-                message_preview=preview[:500],
-                probability=probability,
-            )
-            db.add(alert)
-            alerts_to_notify.append(alert)
-        
-        parent_ids.add(child.parent_id)
-
-    db.commit()
-
-    for alert in alerts_to_notify:
-        db.refresh(alert)
-        # Fetch conversation messages to link them together
-        messages = (
-            db.query(ChatMessage)
-            .filter(
-                ChatMessage.platform == alert.platform,
-                ChatMessage.server_id == alert.server_id,
-            )
-            .order_by(ChatMessage.created_at.asc())
-            .all()
+    if alert:
+        alert.message_preview = preview[:500]
+        alert.probability = probability
+        alert.is_read = False
+    else:
+        alert = Alert(
+            parent_id=child.parent_id,
+            child_account_id=child.id,
+            target_id=target_id,
+            platform=platform,
+            server_id=server_id,
+            message_preview=preview[:500],
+            probability=probability,
         )
-        alert_res = AlertResponse.model_validate(alert)
-        alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
-        payload = alert_res.model_dump(mode="json")
-        payload["type"] = "alert"
-        await alert_manager.notify_parent(alert.parent_id, payload)
+        db.add(alert)
+    return alert
+
+
+async def _send_alert_notification(
+    db: Session, alert: Alert, messages: list[ChatMessage]
+) -> None:
+    db.refresh(alert)
+
+    alert_res = AlertResponse.model_validate(alert)
+    alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+
+    payload = alert_res.model_dump(mode="json")
+    payload["type"] = "alert"
+
+    await alert_manager.notify_parent(alert.parent_id, payload)
