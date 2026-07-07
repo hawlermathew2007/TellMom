@@ -20,6 +20,7 @@ def add_message_db(
         content=message,
     )
     db.add(msg)
+    db.flush()
     db.commit()
     return msg
 

@@ -102,11 +102,15 @@ export default function App() {
         // const wsUrl = `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
         const wsUrl = `${protocol}://localhost:8000/api/alerts/ws?token=${encodeURIComponent(token)}`;
 
+        let isCancelled = false;
+
         const connectSocket = () => {
+            if (isCancelled) return;
             const ws = new WebSocket(wsUrl);
             socketRef.current = ws;
 
             ws.onmessage = (event) => {
+                if (isCancelled) return;
                 try {
                     const raw = JSON.parse(event.data);
 
@@ -157,9 +161,10 @@ export default function App() {
             };
 
             ws.onclose = () => {
+                if (isCancelled) return;
                 console.warn("TellMom WebSocket alert socket disconnected. Retrying in 5 seconds...");
                 setTimeout(() => {
-                    if (getToken()) connectSocket();
+                    if (!isCancelled && getToken()) connectSocket();
                 }, 5000);
             };
 
@@ -171,6 +176,7 @@ export default function App() {
         connectSocket();
 
         return () => {
+            isCancelled = true;
             if (socketRef.current) {
                 socketRef.current.close();
             }

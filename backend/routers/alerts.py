@@ -122,6 +122,8 @@ async def alerts_websocket(websocket: WebSocket) -> None:
             while True:
                 await websocket.receive_text()
         except WebSocketDisconnect:
+            pass
+        finally:
             alert_manager.disconnect(parent.id, websocket)
     finally:
         db.close()

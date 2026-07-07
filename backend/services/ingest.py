@@ -5,6 +5,7 @@ from database.models import ChildAccount
 from fastapi import HTTPException
 from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect
 from collections import defaultdict
 
 from core.registry import ChatPlatform
@@ -26,7 +27,6 @@ class MessageCacheItem:
     user_id: str
     platform: ChatPlatform
     server_id: str
-    user_id: str
     content: str
     created_at: datetime
 
@@ -45,6 +45,13 @@ async def process_ingest(
 
     # Add message to db / cache layer
     msg = add_message_db(db, platform, server_id, user_id, message)
+    
+    if not msg:
+        logger.error("add_message_db returned None or empty object")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to add message to database",
+        )
 
     # Load messages of conversation from cache / DB if expired
     sync_message_cache(db, platform, server_id)
@@ -52,9 +59,17 @@ async def process_ingest(
     assert cache is not None
 
     # convert to built-in data type for cache storage
-    msg = MessageCacheItem(
-        **{col.name: getattr(msg, col.name) for col in msg.__table__.columns}
-    )
+    msg_inspection = inspect(msg)
+    msg_dict = {col.key: getattr(msg, col.key) for col in msg_inspection.mapper.column_attrs}
+    
+    if not msg_dict:
+        logger.error(f"Failed to convert message to dict. msg: {msg}, msg_inspection: {msg_inspection}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to serialize message to cache",
+        )
+    
+    msg = MessageCacheItem(**msg_dict)
     cache["collection"].append(msg)
     cache["map"][msg.user_id].append(msg)
     messages = cache["collection"]
