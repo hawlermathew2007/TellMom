@@ -31,7 +31,7 @@ export interface ChatMessageResponse {
      * @type {string}
      * @memberof ChatMessageResponse
      */
-    senderPlatformUserId: string;
+    userId: string;
     /**
      * 
      * @type {string}
@@ -51,7 +51,7 @@ export interface ChatMessageResponse {
  */
 export function instanceOfChatMessageResponse(value: object): value is ChatMessageResponse {
     if (!('id' in value) || value['id'] === undefined) return false;
-    if ((!('senderPlatformUserId' in value) && !('sender_platform_user_id' in value)) || (value['senderPlatformUserId'] === undefined && value['sender_platform_user_id'] === undefined)) return false;
+    if ((!('userId' in value) && !('user_id' in value)) || (value['userId'] === undefined && value['user_id'] === undefined)) return false;
     if (!('content' in value) || value['content'] === undefined) return false;
     if ((!('createdAt' in value) && !('created_at' in value)) || (value['createdAt'] === undefined && value['created_at'] === undefined)) return false;
     return true;
@@ -68,7 +68,7 @@ export function ChatMessageResponseFromJSONTyped(json: any, ignoreDiscriminator:
     return {
         
         'id': json['id'],
-        'senderPlatformUserId': json['sender_platform_user_id'],
+        'userId': json['user_id'],
         'content': json['content'],
         'createdAt': (new Date(json['created_at'])),
     };
@@ -86,7 +86,7 @@ export function ChatMessageResponseToJSONTyped(value?: ChatMessageResponse | nul
     return {
         
         'id': value['id'],
-        'sender_platform_user_id': value['senderPlatformUserId'],
+        'user_id': value['userId'],
         'content': value['content'],
         'created_at': value['createdAt'].toISOString(),
     };

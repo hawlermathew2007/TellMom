@@ -38,8 +38,25 @@ export default function App() {
 
     // Helper to add toast notifications
     const addToast = useCallback((type: "success" | "error" | "info" | "alert", title: string, message: string, alertId?: number) => {
-        const id = Math.random().toString(36).substring(2, 9);
-        setToasts((prev) => [...prev, { id, type, title, message, alertId }]);
+        setToasts((prev) => {
+            const existingIndex = prev.findIndex((t) =>
+                alertId !== undefined ? t.alertId === alertId : t.title === title
+            );
+            if (existingIndex > -1) {
+                const updated = [...prev];
+                updated[existingIndex] = {
+                    ...updated[existingIndex],
+                    type,
+                    title,
+                    message,
+                    alertId
+                };
+                return updated;
+            } else {
+                const id = Math.random().toString(36).substring(2, 9);
+                return [...prev, { id, type, title, message, alertId }];
+            }
+        });
     }, []);
 
     const closeToast = useCallback((id: string) => {
@@ -117,6 +134,7 @@ export default function App() {
             }
 
             ws.onmessage = (event) => {
+                if (isCancelled) return;
                 try {
                     const raw = JSON.parse(event.data);
 
@@ -153,8 +171,13 @@ export default function App() {
                             };
                         }
 
-                        // Update local alerts log (prepend new alert)
-                        setAlerts((prev) => [newAlert, ...prev]);
+                        // Update local alerts log (prepend new alert or update if exists)
+                        setAlerts((prev) => {
+                            if (prev.some((a) => a.id === newAlert.id)) {
+                                return prev.map((a) => (a.id === newAlert.id ? newAlert : a));
+                            }
+                            return [newAlert, ...prev];
+                        });
                     }
                 } catch (err) {
                     console.error("Failed to parse WebSocket alert payload", err);
@@ -162,9 +185,10 @@ export default function App() {
             };
 
             ws.onclose = () => {
+                if (isCancelled) return;
                 console.warn("TellMom WebSocket alert socket disconnected. Retrying in 5 seconds...");
                 setTimeout(() => {
-                    if (getToken()) connectSocket();
+                    if (!isCancelled && getToken()) connectSocket();
                 }, 5000);
             };
 
@@ -176,6 +200,7 @@ export default function App() {
         connectSocket();
 
         return () => {
+            isCancelled = true;
             if (socketRef.current) {
                 socketRef.current.close();
             }

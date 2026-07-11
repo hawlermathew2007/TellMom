@@ -24,7 +24,6 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `CORS_ORIGINS` | `http://localhost:5173` |
 | `GROQ_API_KEY` | *(required for LLM grooming analysis)* |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` |
-| `MESSAGE_CACHE_TTL_HOURS` | `24` |
 | `CLASSIFIER_MIN_MESSAGES` | `7` |
 | `CLASSIFIER_PASSWORD` | `1234` |
 

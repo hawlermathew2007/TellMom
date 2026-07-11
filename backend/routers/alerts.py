@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy.orm import Session
 import json
 
-from database.models import Alert, Parent, ChatMessage
+from database.models import Alert, Parent, ChatMessage, ChildAccount
 from database.session import SessionLocal, get_db
 from core.dependencies import get_current_parent
 from schemas.alerts import AlertResponse, ChatMessageResponse
@@ -29,15 +29,37 @@ def list_alerts(
     )
     response = []
     for alert in alerts:
-        messages = (
-            db.query(ChatMessage)
-            .filter(
-                ChatMessage.platform == alert.platform,
-                ChatMessage.server_id == alert.server_id,
-            )
-            .order_by(ChatMessage.created_at.asc())
-            .all()
+        # Restrict messages to only the two participants involved in the alert:
+        # the monitored child and the target user that triggered the alert.
+        child = (
+            db.query(ChildAccount)
+            .filter(ChildAccount.id == alert.child_account_id)
+            .first()
         )
+
+        if child is None:
+            # Fallback to server-wide messages if child not found (shouldn't happen)
+            messages = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.platform == alert.platform,
+                    ChatMessage.server_id == alert.server_id,
+                )
+                .order_by(ChatMessage.created_at.asc())
+                .all()
+            )
+        else:
+            messages = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.platform == alert.platform,
+                    ChatMessage.server_id == alert.server_id,
+                    ChatMessage.user_id.in_([child.platform_user_id, alert.target_id]),
+                )
+                .order_by(ChatMessage.created_at.asc())
+                .all()
+            )
+
         alert_res = AlertResponse.model_validate(alert)
         alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
         response.append(alert_res)
@@ -62,21 +84,40 @@ def acknowledge_alert(
     db.commit()
     db.refresh(alert)
 
-    messages = (
-        db.query(ChatMessage)
-        .filter(
-            ChatMessage.platform == alert.platform,
-            ChatMessage.server_id == alert.server_id,
-        )
-        .order_by(ChatMessage.created_at.asc())
-        .all()
+    # Return only the two-party conversation for the acknowledged alert
+    child = (
+        db.query(ChildAccount)
+        .filter(ChildAccount.id == alert.child_account_id)
+        .first()
     )
+
+    if child is None:
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+    else:
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+                ChatMessage.user_id.in_([child.platform_user_id, alert.target_id]),
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
     return alert_res
 
 
-@router.get("/{alert_id}/grooming-analysis", response_model=IncrementalAnalysisResponse)
+@router.get("/{alert_id}/analysis", response_model=IncrementalAnalysisResponse)
 async def get_grooming_analysis(
     alert_id: int,
     parent: Parent = Depends(get_current_parent),
@@ -95,16 +136,8 @@ async def get_grooming_analysis(
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    # Parse platform from alert
-    try:
-        platform = ChatPlatform(
-            alert.platform.value if hasattr(alert.platform, "value") else alert.platform
-        )
-    except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail="Invalid platform in alert")
-
     # Get incremental analysis
-    result = await get_incremental_analysis(db, platform, alert.server_id)
+    result = await get_incremental_analysis(db, alert)
 
     if result is None:
         # Analysis failed or threshold not met
@@ -113,6 +146,7 @@ async def get_grooming_analysis(
     return result
 
 
+# TODO: change this to authentication header also
 @router.websocket("/ws")
 async def alerts_websocket(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -148,6 +182,8 @@ async def alerts_websocket(websocket: WebSocket) -> None:
             while True:
                 await websocket.receive_text()
         except WebSocketDisconnect:
+            pass
+        finally:
             alert_manager.disconnect(parent.id, websocket)
     finally:
         db.close()

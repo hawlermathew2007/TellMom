@@ -1,22 +1,34 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+from dataclasses import dataclass
+from database.models import ChildAccount
 from fastapi import HTTPException
 from services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect
+from collections import defaultdict
 
 from core.registry import ChatPlatform
 from core import config
-from database.models import ChatMessage
 
 from services.explanation import increment_unprocessed_count
 from services.messages import (
     add_message_db,
-    notify_parents_in_chat,
-    load_server_chat_group,
-    count_server_messages,
+    notify_parent,
 )
+from core.cache import message_cache, sync_message_cache
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MessageCacheItem:
+    id: str
+    user_id: str
+    platform: ChatPlatform
+    server_id: str
+    content: str
+    created_at: datetime
 
 
 async def process_ingest(
@@ -31,55 +43,91 @@ async def process_ingest(
     if all pre-defined requirements are met.
     """
 
-    # Add message to db
-    add_message_db(db, platform, server_id, user_id, message)
-    message_count = count_server_messages(
-        db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
-    )
-
-    if message_count < config.CLASSIFIER_MIN_MESSAGES:
-        return
-
-    # Load messages of conversation from DB within the TTL timeframe
-    since = datetime.now(timezone.utc) - timedelta(hours=config.MESSAGE_CACHE_TTL_HOURS)
-    db_messages = (
-        db.query(ChatMessage)
-        .filter(
-            ChatMessage.platform == platform,
-            ChatMessage.server_id == server_id,
-            ChatMessage.created_at >= since,
-        )
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-    raw = " ".join([m.content for m in db_messages])
-
-    try:
-        await classifier_stream.ensure_connected()
-        result = await classifier_stream.classify(raw)
-    except ConnectionError as e:
-        logger.error(e)
+    # Add message to db / cache layer
+    msg = add_message_db(db, platform, server_id, user_id, message)
+    
+    if not msg:
+        logger.error("add_message_db returned None or empty object")
         raise HTTPException(
-            status_code=503,
-            detail=f"Classifier not connected. Retry later. {e}",
+            status_code=500,
+            detail="Failed to add message to database",
         )
 
-    logger.warning(f"Classification result: {result.has_pedo} (probability: {result.probability})")
-    if result.has_pedo:
-        chat_group = load_server_chat_group(
-            db, platform, server_id, max_age_hours=config.MESSAGE_CACHE_TTL_HOURS
-        )
+    # Load messages of conversation from cache / DB if expired
+    sync_message_cache(db, platform, server_id)
+    cache = message_cache.get(server_id)
+    assert cache is not None
 
-        # Start incremental grooming analysis by tracking unprocessed messages
-        increment_unprocessed_count(db, platform, server_id)
-        preview = (
-            db_messages[-1].content if db_messages else "suspicious message deteceted"
+    # convert to built-in data type for cache storage
+    msg_inspection = inspect(msg)
+    msg_dict = {col.key: getattr(msg, col.key) for col in msg_inspection.mapper.column_attrs}
+    
+    if not msg_dict:
+        logger.error(f"Failed to convert message to dict. msg: {msg}, msg_inspection: {msg_inspection}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to serialize message to cache",
         )
-        await notify_parents_in_chat(
-            db,
-            platform,
-            server_id,
-            chat_group,
-            preview,
-            result.probability,
-        )
+    
+    msg = MessageCacheItem(**msg_dict)
+    cache["collection"].append(msg)
+    cache["map"][msg.user_id].append(msg)
+    messages = cache["collection"]
+
+    id_to_chats = defaultdict(list)
+    for msg in messages:
+        id_to_chats[msg.user_id].append(msg)
+
+    children = db.query(ChildAccount).all()
+    for child in children:
+        child_id = child.platform_user_id
+        child_messages = id_to_chats.get(child_id)
+        if child_messages is None:
+            continue
+
+        for k, v in id_to_chats.items():
+            if k == child_id:
+                continue
+
+            if len(v) + len(child_messages) < config.CLASSIFIER_MIN_MESSAGES:
+                continue
+
+            conversation = v + child_messages
+            conversation.sort(key=lambda x: x.created_at)
+            raw = " ".join([m.content for m in conversation])
+
+            try:
+                await classifier_stream.ensure_connected()
+                result = await classifier_stream.classify(raw)
+            except ConnectionError as e:
+                logger.error(e)
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Classifier not connected. Retry later. {e}",
+                )
+
+            # For debugging only
+            logger.warning(
+                f"Classification result: {bool(result.has_pedo)}"
+                f"Probability: {float(result.probability)}"
+            )
+
+            if not result.has_pedo:
+                continue
+
+            # NOTE: doing this to avoid maintaining the read state in both db and cache
+            preview = (
+                messages[-1].content if messages else "suspicious message deteceted"
+            )
+            alert = await notify_parent(
+                db=db,
+                platform=platform,
+                child=child,
+                target_id=k,
+                server_id=server_id,
+                preview=preview,
+                probability=result.probability,
+                messages=conversation,
+            )
+
+            increment_unprocessed_count(db, str(alert.id))

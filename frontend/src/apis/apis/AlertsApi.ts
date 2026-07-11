@@ -34,7 +34,7 @@ export interface AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest {
     alertId: number;
 }
 
-export interface GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest {
+export interface GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest {
     alertId: number;
 }
 
@@ -97,13 +97,13 @@ export class AlertsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Creates request options for getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet without sending the request
+     * Creates request options for getGroomingAnalysisApiAlertsAlertIdAnalysisGet without sending the request
      */
-    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequestOpts(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest): Promise<runtime.RequestOpts> {
+    async getGroomingAnalysisApiAlertsAlertIdAnalysisGetRequestOpts(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['alertId'] == null) {
             throw new runtime.RequiredError(
                 'alertId',
-                'Required parameter "alertId" was null or undefined when calling getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet().'
+                'Required parameter "alertId" was null or undefined when calling getGroomingAnalysisApiAlertsAlertIdAnalysisGet().'
             );
         }
 
@@ -120,7 +120,7 @@ export class AlertsApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/alerts/{alert_id}/grooming-analysis`;
+        let urlPath = `/api/alerts/{alert_id}/analysis`;
         urlPath = urlPath.replace('{alert_id}', encodeURIComponent(String(requestParameters['alertId'])));
 
         return {
@@ -135,8 +135,8 @@ export class AlertsApi extends runtime.BaseAPI {
      * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
      * Get Grooming Analysis
      */
-    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRaw(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IncrementalAnalysisResponse>> {
-        const requestOptions = await this.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequestOpts(requestParameters);
+    async getGroomingAnalysisApiAlertsAlertIdAnalysisGetRaw(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IncrementalAnalysisResponse>> {
+        const requestOptions = await this.getGroomingAnalysisApiAlertsAlertIdAnalysisGetRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => IncrementalAnalysisResponseFromJSON(jsonValue));
@@ -146,8 +146,8 @@ export class AlertsApi extends runtime.BaseAPI {
      * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
      * Get Grooming Analysis
      */
-    async getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGet(requestParameters: GetGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IncrementalAnalysisResponse> {
-        const response = await this.getGroomingAnalysisApiAlertsAlertIdGroomingAnalysisGetRaw(requestParameters, initOverrides);
+    async getGroomingAnalysisApiAlertsAlertIdAnalysisGet(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IncrementalAnalysisResponse> {
+        const response = await this.getGroomingAnalysisApiAlertsAlertIdAnalysisGetRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

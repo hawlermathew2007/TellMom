@@ -172,7 +172,7 @@ export default function ConversationViewer({
     }[] = [];
 
     messages.forEach((msg, idx) => {
-      const isChild = msg.senderPlatformUserId === childName;
+      const isChild = msg.userId === childName;
       const isSuspicious = messageIdToStageMap[msg.id] !== undefined;
       const suspiciousStage = messageIdToStageMap[msg.id];
       const isMatched = !!searchTerm.trim() && msg.content.toLowerCase().includes(searchTerm.toLowerCase());
@@ -180,7 +180,7 @@ export default function ConversationViewer({
       const prevMsg = idx > 0 ? messages[idx - 1] : null;
       const isNewGroup = 
         !prevMsg || 
-        prevMsg.senderPlatformUserId !== msg.senderPlatformUserId ||
+        prevMsg.userId !== msg.userId ||
         (new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() > 3 * 60 * 1000) ||
         getMessageDateString(prevMsg.createdAt) !== getMessageDateString(msg.createdAt);
 
@@ -194,15 +194,15 @@ export default function ConversationViewer({
       };
 
       if (isNewGroup) {
-        const userIdx = getUserIndex(msg.senderPlatformUserId);
+        const userIdx = getUserIndex(msg.userId);
         const avatarColorClass = isChild 
           ? "bg-violet-500/20 text-violet-300 border-violet-500/30" 
           : PARTICIPANT_AVATAR_BG[userIdx % PARTICIPANT_AVATAR_BG.length];
         
         groups.push({
           isChild,
-          sender: msg.senderPlatformUserId,
-          avatarText: msg.senderPlatformUserId.substring(0, 2).toUpperCase(),
+          sender: msg.userId,
+          avatarText: msg.userId.substring(0, 2).toUpperCase(),
           avatarColorClass,
           messages: [msgData],
         });
