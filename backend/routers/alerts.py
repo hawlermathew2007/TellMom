@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from database.models import Alert, Parent, ChatMessage
+from database.models import Alert, Parent, ChatMessage, ChildAccount
 from database.session import SessionLocal, get_db
 from core.dependencies import get_current_parent
 from schemas.alerts import AlertResponse, ChatMessageResponse
@@ -26,15 +26,37 @@ def list_alerts(
     )
     response = []
     for alert in alerts:
-        messages = (
-            db.query(ChatMessage)
-            .filter(
-                ChatMessage.platform == alert.platform,
-                ChatMessage.server_id == alert.server_id,
-            )
-            .order_by(ChatMessage.created_at.asc())
-            .all()
+        # Restrict messages to only the two participants involved in the alert:
+        # the monitored child and the target user that triggered the alert.
+        child = (
+            db.query(ChildAccount)
+            .filter(ChildAccount.id == alert.child_account_id)
+            .first()
         )
+
+        if child is None:
+            # Fallback to server-wide messages if child not found (shouldn't happen)
+            messages = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.platform == alert.platform,
+                    ChatMessage.server_id == alert.server_id,
+                )
+                .order_by(ChatMessage.created_at.asc())
+                .all()
+            )
+        else:
+            messages = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.platform == alert.platform,
+                    ChatMessage.server_id == alert.server_id,
+                    ChatMessage.user_id.in_([child.platform_user_id, alert.target_id]),
+                )
+                .order_by(ChatMessage.created_at.asc())
+                .all()
+            )
+
         alert_res = AlertResponse.model_validate(alert)
         alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
         response.append(alert_res)
@@ -59,15 +81,34 @@ def acknowledge_alert(
     db.commit()
     db.refresh(alert)
 
-    messages = (
-        db.query(ChatMessage)
-        .filter(
-            ChatMessage.platform == alert.platform,
-            ChatMessage.server_id == alert.server_id,
-        )
-        .order_by(ChatMessage.created_at.asc())
-        .all()
+    # Return only the two-party conversation for the acknowledged alert
+    child = (
+        db.query(ChildAccount)
+        .filter(ChildAccount.id == alert.child_account_id)
+        .first()
     )
+
+    if child is None:
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+    else:
+        messages = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.platform == alert.platform,
+                ChatMessage.server_id == alert.server_id,
+                ChatMessage.user_id.in_([child.platform_user_id, alert.target_id]),
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
     return alert_res
