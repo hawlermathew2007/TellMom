@@ -25,14 +25,15 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=config.CORS_ORIGINS,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
+# TODO: change this to project everything into the websocket way
 app.include_router(auth.router, prefix="/api")
 app.include_router(children.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
