@@ -1,15 +1,18 @@
 import logging
 import json
-from fastapi import FastAPI, APIRouter, HTTPException, WebSocket
+from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from proxy.core.jwt import decode_stream_token
-from proxy.schemas.auth import SocketCodes
-from proxy.routers import auth
+from proxy.schemas.response import ResponseStatus
+from proxy.routers import auth, session
+from proxy.services.connection import (
+    handle_server_message,
+    register_server,
+    server_map,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-server_map: dict[str, WebSocket] = {}
 router = APIRouter()
 
 
@@ -20,6 +23,7 @@ async def stream(websocket: WebSocket) -> None:
     try:
         first_message = await websocket.receive_text()
         payload = json.loads(first_message)
+        # TODO: replace this one with enum also
         if payload.get("type") != "auth":
             raise ValueError("First message must be of type 'auth'")
         token = payload["token"]
@@ -33,25 +37,23 @@ async def stream(websocket: WebSocket) -> None:
         await websocket.close(code=4401, reason="Invalid token")
         return
 
-    # TODO: turn this into a TTL and allow token refresh also
-    server_map[server_id] = websocket
+    await register_server(server_id, websocket)
+    # TODO: put the enum else where
+    await websocket.send_text(json.dumps({"type": ResponseStatus.SUCCESS}))
 
-    # Let the local server know that authentication done
-    await websocket.send_text(json.dumps({"type": SocketCodes.AUTH_OK}))
-
-    # TODO: write the websocket processor here
-    # TODO: now the one delivering the message gotta be the proxy
-    # await router.connect(websocket)
-    # try:
-    #     while True:
-    #         raw = await websocket.receive_text()
-    #         router.handle_message(raw)
-    # except WebSocketDisconnect:
-    #     classifier_stream.disconnect()
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            await handle_server_message(raw)
+    except WebSocketDisconnect:
+        logger.info("Server websocket disconnected: %s", server_id)
+    finally:
+        server_map.pop(server_id, None)
 
 
 app = FastAPI(title="TellMom Proxy Server")
 app.include_router(auth.router)
+app.include_router(session.router)
 app.include_router(router)
 
 if __name__ == "__main__":

@@ -10,8 +10,7 @@ from schemas.grooming import IncrementalAnalysisResponse
 from services.auth import get_parent_from_token
 from services.notifications import alert_manager
 from services.explanation import get_incremental_analysis
-from services.stream_security import decode_stream_token
-from core.registry import ChatPlatform
+from core.jwt import decode_stream_token
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -146,7 +145,6 @@ async def get_grooming_analysis(
     return result
 
 
-# TODO: change this to authentication header also
 @router.websocket("/ws")
 async def alerts_websocket(websocket: WebSocket) -> None:
     await websocket.accept()

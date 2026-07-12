@@ -1,4 +1,3 @@
-from enum import Enum
 from pydantic import BaseModel
 
 
@@ -17,5 +16,6 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class SocketCodes(Enum, str):
-    AUTH_OK = "AUTH_OK"
+class ServerTokenResponse(TokenResponse):
+    access_token: str
+    server_id: str

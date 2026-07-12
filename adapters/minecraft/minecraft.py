@@ -25,14 +25,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import re
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import httpx
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 logging.basicConfig(
     level=logging.INFO,
@@ -133,37 +138,31 @@ def parse_chat_message(line: str, offset: int) -> Optional[ChatMessage]:
     )
 
 
-class IngestClient:
-    def __init__(self, backend_url: str, server_id: str, timeout: float = 10.0):
-        self.backend_url = backend_url
-        self.server_id = server_id
-        self._client = httpx.AsyncClient(timeout=timeout)
+import sys
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from client import IngestClient
 
-    async def send(self, msg: ChatMessage) -> None:
-        payload = {
-            "platform": "minecraft",
-            "user_id": msg.username,
-            "server_id": self.server_id,
-            "message": msg.message,
-        }
-        resp = await self._client.post(self.backend_url, json=payload)
-        resp.raise_for_status()
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
 
 
 async def run(
     log_path: Path,
-    backend_url: str,
+    backend_url: str | None,
     server_id: str,
     state_path: Path,
     poll_interval: float,
     max_retries: int,
+    proxy_url: str | None = None,
+    password_code: str | None = None,
 ) -> None:
     store = OffsetStore(state_path)
     tailer = LogTailer(log_path, start_offset=store.read_offset)
-    client = IngestClient(backend_url, server_id)
+    client = IngestClient(
+        backend_url or "",
+        server_id,
+        proxy_url=proxy_url,
+        password_code=password_code,
+        client_id="minecraft-client",
+    )
 
     log.info("Watching %s (starting at offset %d)", log_path, store.read_offset)
 
@@ -201,7 +200,13 @@ async def _send_with_retry(
     delay = 1.0
     for attempt in range(1, max_retries + 1):
         try:
-            await client.send(msg)
+            payload = {
+                "platform": "minecraft",
+                "user_id": msg.username,
+                "server_id": client.server_id,
+                "message": msg.message,
+            }
+            await client.send(payload)
             log.info("Sent <%s> %s", msg.username, msg.message)
             return
         except httpx.HTTPStatusError as exc:
@@ -251,7 +256,22 @@ def main() -> None:
         help="Path to the Minecraft log file (e.g. latest.log)",
     )
     parser.add_argument(
-        "--backend-url", required=True, help="Full URL of the /ingest endpoint"
+        "--backend-url",
+        required=False,
+        default=None,
+        help="Full URL of the /ingest endpoint when not using a proxy",
+    )
+    parser.add_argument(
+        "--proxy-url",
+        required=False,
+        default=None,
+        help="Full URL of the proxy server when using secure transport",
+    )
+    parser.add_argument(
+        "--password-code",
+        required=False,
+        default=None,
+        help="Passcode for client authentication to the local server via proxy",
     )
     parser.add_argument(
         "--server-id", required=True, help="Identifier for this Minecraft server"
@@ -277,6 +297,9 @@ def main() -> None:
         args.log.suffix + ".adapter-state.json"
     )
 
+    if args.backend_url is None and args.proxy_url is None:
+        raise SystemExit("Please provide either --backend-url or --proxy-url")
+
     asyncio.run(
         run(
             log_path=args.log,
@@ -285,6 +308,8 @@ def main() -> None:
             state_path=state_path,
             poll_interval=args.poll_interval,
             max_retries=args.max_retries,
+            proxy_url=args.proxy_url,
+            password_code=args.password_code,
         )
     )
 

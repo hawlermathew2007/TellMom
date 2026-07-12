@@ -18,7 +18,7 @@ from schemas.ingest import (
 )
 from services.classifier_stream import classifier_stream
 from services.ingest import process_ingest
-from services.stream_security import create_stream_token, decode_stream_token
+from core.jwt import create_stream_token, decode_stream_token
 
 router = APIRouter()
 classifier_router = APIRouter(tags=["classifier"])

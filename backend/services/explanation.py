@@ -128,7 +128,6 @@ async def _call_groq_incremental(
     return IncrementalAnalysisResponse(new_stages=new_stages)
 
 
-# TODO: fix this one though, outdated since last update
 async def get_incremental_analysis(
     db: Session, alert: Alert
 ) -> IncrementalAnalysisResponse | None:
