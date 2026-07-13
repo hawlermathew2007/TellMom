@@ -1,5 +1,6 @@
 from enum import Enum
 
-class ResponseStatus(Enum, str):
+
+class ResponseStatus(str, Enum):
     FAILED = "FAILED"
     SUCCESS = "SUCCESS"

@@ -3,7 +3,7 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from core import config
+from proxy.core import config
 
 
 class Base(DeclarativeBase):
@@ -23,6 +23,6 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from database import models  # noqa: F401
+    from proxy.database import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)

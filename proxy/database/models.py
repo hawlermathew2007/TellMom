@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy import Index, String, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
-from database.session import Base
+from proxy.database.session import Base
 
 
 class Server(Base):

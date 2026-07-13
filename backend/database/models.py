@@ -13,8 +13,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.registry import ChatPlatform
-from database.session import Base
+from backend.core.registry import ChatPlatform
+from backend.database.session import Base
 
 
 class Parent(Base):

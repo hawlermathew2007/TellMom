@@ -2,9 +2,8 @@ from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+# from fastapi.middleware.cors import CORSMiddleware
 
-from core import config
 from services.classifier_stream import classifier_stream
 from database.session import init_db
 from routers import alerts, auth, children, ingest

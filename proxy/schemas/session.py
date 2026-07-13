@@ -1,6 +1,6 @@
-from enum import Enum
 from pydantic import BaseModel
-from response import ResponseStatus
+from shared.schemas.response import ResponseStatus
+from shared.schemas.session import SessionRequestTypes
 
 
 class SessionAuthRequest(BaseModel):
@@ -39,7 +39,3 @@ class SessionMessageResponse(BaseModel):
     nonce: str
     ciphertext: str
     auth_tag: str
-
-class SessionRequestTypes(Enum, str):
-    ASSOCIATE = "ASSOCIATE"
-    KEY_EXCHANGE = "KEY_EXCHANGE"

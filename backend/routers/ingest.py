@@ -9,7 +9,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 import json
 
-from core import config
+from backend.core import config
 from database.session import get_db
 from schemas.ingest import (
     ClassifierCheckInRequest,
@@ -18,7 +18,7 @@ from schemas.ingest import (
 )
 from services.classifier_stream import classifier_stream
 from services.ingest import process_ingest
-from core.jwt import create_stream_token, decode_stream_token
+from backend.core.jwt import create_stream_token, decode_stream_token
 
 router = APIRouter()
 classifier_router = APIRouter(tags=["classifier"])

@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 from fastapi import WebSocket
-from schemas.ingest import ClassifierResultItem, ClassifyResponse
+from backend.schemas.ingest import ClassifierResultItem, ClassifyResponse
 
 logger = logging.getLogger(__name__)
 

@@ -12,8 +12,10 @@ from typing import Any
 import httpx
 import websockets
 
-from core.registry import ChatPlatform
-from services.session_security import (
+from backend.core.registry import ChatPlatform
+from shared.schemas.session import SessionRequestTypes
+from shared.schemas.response import ResponseStatus
+from backend.services.session_security import (
     SessionState,
     b64_to_int,
     decrypt_message,
@@ -25,8 +27,14 @@ from services.session_security import (
     int_to_b64,
     xor_nonce,
 )
-from database.session import SessionLocal
-from services.ingest import process_ingest
+from backend.database.session import SessionLocal
+from backend.services.ingest import process_ingest
+from shared.schemas.messages import (
+    AuthResponse,
+    DhResponse,
+    MessageResponse,
+)
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +64,7 @@ class ProxyAgent:
     async def register(self) -> None:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.proxy_url}/register",
+                f"{self.proxy_url}/auth/register",
                 json={"username": self.username, "password": self.password},
                 timeout=15.0,
             )
@@ -95,7 +103,7 @@ class ProxyAgent:
         )
         raw = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
         message = json.loads(raw)
-        if message.get("type") != "SUCCESS":
+        if message.get("type") != ResponseStatus.SUCCESS.value:
             raise RuntimeError("Proxy did not accept websocket authentication")
 
         logger.info("Connected websocket to proxy for server %s", self.server_id)
@@ -118,28 +126,35 @@ class ProxyAgent:
             logger.warning("Proxy request missing request_id: %s", message)
             return
 
-        if message_type == "ASSOCIATE":
-            await self._handle_auth_request(message)
-        elif message_type == "KEY_EXCHANGE":
-            await self._handle_dh_request(message)
-        elif message_type == "MESSAGE":
-            await self._handle_encrypted_message(message)
-        else:
+        # dispatch handlers by message type using a dict for clarity
+        handlers: dict[str, Any] = {
+            SessionRequestTypes.ASSOCIATE.value: self._handle_auth_request,
+            SessionRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
+            "MESSAGE": self._handle_encrypted_message,
+        }
+
+        handler = handlers.get(message_type)
+        if handler is None:
             logger.warning("Unknown proxy request type: %s", message_type)
+            return
+
+        await handler(message)
 
     async def _handle_auth_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message.get("session_id") or ""
-        response = {
-            "type": "auth_response",
-            "request_id": request_id,
-            "session_id": session_id,
-        }
+
+        response = AuthResponse(
+            type="auth_response",
+            request_id=request_id,
+            session_id=session_id,
+            status=ResponseStatus.FAILED,
+        )
 
         code = message.get("password_code")
         if code != ProxyState.current().password_code:
-            response["status"] = "FAILED"
-            response["reason"] = "Invalid password code"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Invalid password code"
             await self._send_response(response)
             return
 
@@ -148,23 +163,24 @@ class ProxyAgent:
         self.session_states[session_id] = SessionState(
             session_id=session_id, status="authenticated"
         )
-        response["status"] = "SUCCESS"
-        response["session_id"] = session_id
+        response.status = ResponseStatus.SUCCESS
+        response.session_id = session_id
         await self._send_response(response)
 
     async def _handle_dh_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message["session_id"]
         state = self.session_states.get(session_id)
-        response = {
-            "type": "dh_response",
-            "request_id": request_id,
-            "session_id": session_id,
-        }
+        response = DhResponse(
+            type="dh_response",
+            request_id=request_id,
+            session_id=session_id,
+            status=ResponseStatus.FAILED,
+        )
 
         if state is None or state.status != "authenticated":
-            response["status"] = "failed"
-            response["reason"] = "Session not authenticated"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Session not authenticated"
             await self._send_response(response)
             return
 
@@ -172,8 +188,8 @@ class ProxyAgent:
         try:
             client_pub = b64_to_int(str(client_pub_b64))
         except Exception:
-            response["status"] = "failed"
-            response["reason"] = "Invalid client DH public key"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Invalid client DH public key"
             await self._send_response(response)
             return
 
@@ -190,23 +206,24 @@ class ProxyAgent:
         state.client_sequence = 0
         state.server_sequence = 0
 
-        response["status"] = "ok"
-        response["server_dh_pubkey"] = int_to_b64(server_public)
+        response.status = ResponseStatus.SUCCESS
+        response.server_dh_pubkey = int_to_b64(server_public)
         await self._send_response(response)
 
     async def _handle_encrypted_message(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message["session_id"]
         state = self.session_states.get(session_id)
-        response = {
-            "type": "message_response",
-            "request_id": request_id,
-            "session_id": session_id,
-        }
+        response = MessageResponse(
+            type="message_response",
+            request_id=request_id,
+            session_id=session_id,
+            status=ResponseStatus.FAILED,
+        )
 
         if state is None or state.status != "ready":
-            response["status"] = "failed"
-            response["reason"] = "Session not ready"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Session not ready"
             await self._send_response(response)
             return
 
@@ -218,8 +235,8 @@ class ProxyAgent:
         aad = f"{session_id}:{sequence}".encode("utf-8")
 
         if sequence != state.client_sequence + 1:
-            response["status"] = "failed"
-            response["reason"] = "Invalid sequence"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Invalid sequence"
             await self._send_response(response)
             return
 
@@ -234,8 +251,8 @@ class ProxyAgent:
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
             logger.warning("Failed to decrypt client payload: %s", exc)
-            response["status"] = "failed"
-            response["reason"] = "Invalid encrypted payload"
+            response.status = ResponseStatus.FAILED
+            response.reason = "Invalid encrypted payload"
             await self._send_response(response)
             return
 
@@ -245,14 +262,14 @@ class ProxyAgent:
             ingest_result = await self._process_request(payload)
         except Exception as exc:
             logger.warning("Ingest processing failed: %s", exc)
-            response["status"] = "failed"
-            response["reason"] = str(exc)
+            response.status = ResponseStatus.FAILED
+            response.reason = str(exc)
             await self._send_response(response)
             return
 
-        response_payload = json.dumps({"status": "ok", "result": ingest_result}).encode(
-            "utf-8"
-        )
+        response_payload = json.dumps(
+            {"status": ResponseStatus.SUCCESS.value, "result": ingest_result}
+        ).encode("utf-8")
 
         state.server_sequence += 1
         server_sequence = state.server_sequence
@@ -264,17 +281,13 @@ class ProxyAgent:
             f"{session_id}:{server_sequence}".encode("utf-8"),
         )
 
-        response.update(
-            {
-                "status": "ok",
-                "sequence": server_sequence,
-                "nonce": base64.urlsafe_b64encode(server_nonce)
-                .rstrip(b"=")
-                .decode("ascii"),
-                "ciphertext": ciphertext_b64,
-                "auth_tag": tag_b64,
-            }
+        response.status = ResponseStatus.SUCCESS
+        response.sequence = server_sequence
+        response.nonce = (
+            base64.urlsafe_b64encode(server_nonce).rstrip(b"=").decode("ascii")
         )
+        response.ciphertext = ciphertext_b64
+        response.auth_tag = tag_b64
         await self._send_response(response)
 
     async def _process_request(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -295,7 +308,13 @@ class ProxyAgent:
         if self.websocket is None:
             logger.warning("No websocket to send proxy response")
             return
-        await self.websocket.send(json.dumps(response))
+        # accept either a Pydantic model or dict
+        if isinstance(response, BaseModel):
+            data = response.model_dump()
+        else:
+            data = dict(response)
+
+        await self.websocket.send(json.dumps(data))
 
 
 class ProxyState:

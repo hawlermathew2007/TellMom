@@ -1,7 +1,7 @@
 import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
-from core import config
+from proxy.core import config
 
 ALGORITHM = config.JWT_ALGORITHM
 

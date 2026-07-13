@@ -1,6 +1,6 @@
 from typing import Literal
 from pydantic import BaseModel, Field
-from core.registry import ChatPlatform
+from backend.core.registry import ChatPlatform
 
 
 class IngestRequest(BaseModel):

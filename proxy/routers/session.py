@@ -15,6 +15,7 @@ from proxy.services.session import (
     get_server_for_session,
     send_proxy_request,
 )
+from shared.schemas.messages import AuthRequest, DhRequest, MessageRequest
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -23,19 +24,17 @@ router = APIRouter(prefix="/session", tags=["session"])
 @router.post("/associate", response_model=SessionAuthResponse)
 async def authenticate_session(body: SessionAuthRequest) -> SessionAuthResponse:
     try:
-        response = await send_proxy_request(
-            body.server_id,
-            {
-                "type": SessionRequestTypes.ASSOCIATE,
-                "server_id": body.server_id,
-                "password_code": body.password_code,
-                "client_id": body.client_id,
-            },
+        msg = AuthRequest(
+            type=SessionRequestTypes.ASSOCIATE.value,  # type: ignore[arg-type]
+            server_id=body.server_id,
+            password_code=body.password_code,
+            client_id=body.client_id,
         )
+        response = await send_proxy_request(body.server_id, msg)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if response.get("status") != ResponseStatus.SUCCESS:
+    if response.get("status") != ResponseStatus.SUCCESS.value:
         return SessionAuthResponse(
             session_id=None,
             status=ResponseStatus.FAILED,
@@ -57,18 +56,16 @@ async def exchange_dh(body: SessionDhRequest) -> SessionDhResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        response = await send_proxy_request(
-            server_id,
-            {
-                "type": SessionRequestTypes.KEY_EXCHANGE,
-                "session_id": body.session_id,
-                "client_dh_pubkey": body.client_dh_pubkey,
-            },
+        msg = DhRequest(
+            type=SessionRequestTypes.KEY_EXCHANGE.value,  # type: ignore[arg-type]
+            session_id=body.session_id,
+            client_dh_pubkey=body.client_dh_pubkey,
         )
+        response = await send_proxy_request(server_id, msg)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if response.get("status") != ResponseStatus.SUCCESS:
+    if response.get("status") != ResponseStatus.SUCCESS.value:
         raise HTTPException(status_code=400, detail=response.get("reason", "DH exchange failed"))
 
     server_dh_pubkey = response.get("server_dh_pubkey")
@@ -86,21 +83,19 @@ async def forward_message(body: SessionMessageRequest) -> SessionMessageResponse
 
     try:
         # TODO: move all of tis to respective requests pydantic model and add a wrapper message around this 
-        response = await send_proxy_request(
-            server_id,
-            {
-                "type": SessionRequestTypes.MESSAGE,
-                "session_id": body.session_id,
-                "sequence": body.sequence,
-                "nonce": body.nonce,
-                "ciphertext": body.ciphertext,
-                "auth_tag": body.auth_tag,
-            },
+        msg = MessageRequest(
+            type=SessionRequestTypes.MESSAGE.value,  # type: ignore[arg-type]
+            session_id=body.session_id,
+            sequence=body.sequence,
+            nonce=body.nonce,
+            ciphertext=body.ciphertext,
+            auth_tag=body.auth_tag,
         )
+        response = await send_proxy_request(server_id, msg)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if response.get("status") != ResponseStatus.SUCCESS:
+    if response.get("status") != ResponseStatus.SUCCESS.value:
         raise HTTPException(status_code=400, detail=response.get("reason", "Encrypted message rejected"))
 
     return SessionMessageResponse(

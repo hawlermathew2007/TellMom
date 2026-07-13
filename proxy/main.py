@@ -5,7 +5,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisco
 from proxy.core.jwt import decode_stream_token
 from proxy.schemas.response import ResponseStatus
 from proxy.routers import auth, session
-from proxy.services.connection import (
+from proxy.services.session import (
     handle_server_message,
     register_server,
     server_map,
@@ -39,7 +39,7 @@ async def stream(websocket: WebSocket) -> None:
 
     await register_server(server_id, websocket)
     # TODO: put the enum else where
-    await websocket.send_text(json.dumps({"type": ResponseStatus.SUCCESS}))
+    await websocket.send_text(json.dumps({"type": ResponseStatus.SUCCESS.value}))
 
     try:
         while True:

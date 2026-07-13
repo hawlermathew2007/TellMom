@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
 from typing import Generic, TypeVar, cast
-from core.config import MESSAGE_CACHE_TTL
-from core.registry import ChatPlatform
-from services.messages import get_server_messages
+from backend.core.config import MESSAGE_CACHE_TTL
+from backend.core.registry import ChatPlatform
+from backend.services.messages import get_server_messages
 from collections import defaultdict
 from sqlalchemy.orm import Session
 

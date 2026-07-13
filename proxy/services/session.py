@@ -3,6 +3,7 @@ import json
 import logging
 import uuid
 from typing import Any
+from pydantic import BaseModel
 
 from fastapi import WebSocket
 
@@ -28,13 +29,19 @@ async def register_server(server_id: str, websocket: WebSocket) -> None:
     server_map[server_id] = websocket
 
 
-async def send_proxy_request(server_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def send_proxy_request(server_id: str, payload: BaseModel | dict[str, Any]) -> dict[str, Any]:
     websocket = server_map.get(server_id)
     if websocket is None:
         raise RuntimeError(f"Server {server_id} is not connected")
 
-    request_id = payload.get("request_id") or str(uuid.uuid4())
-    payload["request_id"] = request_id
+    # allow either a pydantic model or raw dict
+    if isinstance(payload, BaseModel):
+        data = payload.model_dump()
+    else:
+        data = dict(payload)
+
+    request_id = data.get("request_id") or str(uuid.uuid4())
+    data["request_id"] = request_id
 
     loop = asyncio.get_running_loop()
     future: asyncio.Future[dict[str, Any]] = loop.create_future()
@@ -43,7 +50,7 @@ async def send_proxy_request(server_id: str, payload: dict[str, Any]) -> dict[st
         pending_requests[request_id] = future
 
     try:
-        await websocket.send_text(json.dumps(payload))
+        await websocket.send_text(json.dumps(data))
     except Exception as exc:
         raise RuntimeError(f"Failed to send request to server {server_id}: {exc}") from exc
 
