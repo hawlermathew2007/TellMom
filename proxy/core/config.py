@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
-print(DATABASE_URL)
 assert DATABASE_URL is not None
 
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS265")

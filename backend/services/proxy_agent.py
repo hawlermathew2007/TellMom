@@ -5,34 +5,26 @@ import base64
 import json
 import logging
 import secrets
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
 import websockets
 
-from backend.core.registry import ChatPlatform
 from shared.schemas.session import SessionRequestTypes
 from shared.schemas.response import ResponseStatus
 from backend.services.session_security import (
     SessionState,
     b64_to_int,
-    decrypt_message,
     derive_dh_public_key,
     derive_shared_secret,
     derive_session_keys,
-    encrypt_message,
     generate_dh_private_key,
     int_to_b64,
-    xor_nonce,
 )
-from backend.database.session import SessionLocal
-from backend.services.ingest import process_ingest
 from shared.schemas.messages import (
     AuthResponse,
     DhResponse,
-    MessageResponse,
 )
 from pydantic import BaseModel
 
@@ -41,21 +33,12 @@ logger = logging.getLogger(__name__)
 STATE_PATH = Path(__file__).resolve().parent.parent / "backend_state.json"
 
 
-# TODO: move the shared schemas outside so this one can use also
-@dataclass
-class ProxyRegistrationState:
-    proxy_url: str
-    username: str
-    password: str
-    server_id: str | None = None
-    access_token: str | None = None
-
-
 class ProxyAgent:
-    def __init__(self, proxy_url: str, username: str, password: str):
+    def __init__(self, proxy_url: str, username: str, password: str, local_url: str):
         self.proxy_url = proxy_url.rstrip("/")
         self.username = username
         self.password = password
+        self.local_url = local_url
         self.server_id: str | None = None
         self.access_token: str | None = None
         self.websocket: websockets.ClientConnection | None = None
@@ -126,19 +109,142 @@ class ProxyAgent:
             logger.warning("Proxy request missing request_id: %s", message)
             return
 
-        # dispatch handlers by message type using a dict for clarity
         handlers: dict[str, Any] = {
             SessionRequestTypes.ASSOCIATE.value: self._handle_auth_request,
             SessionRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
-            "MESSAGE": self._handle_encrypted_message,
+            SessionRequestTypes.FORWARD: self._handle_forward_request,
         }
 
-        handler = handlers.get(message_type)
+        handler = handlers.get(str(message_type))
         if handler is None:
             logger.warning("Unknown proxy request type: %s", message_type)
             return
 
-        await handler(message)
+        asyncio.create_task(self._run_handler(handler, message))
+
+    async def _run_handler(self, handler: Any, message: dict[str, Any]) -> None:
+        try:
+            await handler(message)
+        except Exception as exc:
+            logger.error(
+                "Error running handler for request %s: %s",
+                message.get("request_id"),
+                exc,
+            )
+
+    # TODO: move the protocol to a share folder, apply the generic protocol handler for both the proxy server
+    # and the potential future clients that might need it
+    async def _handle_forward_request(self, message: dict[str, Any]) -> None:
+        request_id = message["request_id"]
+        session_id = message["session_id"]
+        method = message.get("method", "GET")
+        path = message.get("path", "/")
+        query = message.get("query", "")
+        headers = message.get("headers", {})
+
+        # NOTE: remove the original content-length due to modification hapenning
+        headers.pop("content-length", None)
+        headers.pop("transfer-encoding", None)
+        headers.pop("host", None)
+
+        body_b64 = message.get("body", "")
+        
+        state = self.session_states.get(session_id) if session_id else None
+
+        body_bytes = base64.b64decode(body_b64) if body_b64 else b""
+
+        # TODO: the optional parameters in the State schema have proven to be rather troublesome also
+        if state and state.status == "ready" and body_bytes:
+            try:
+                body_json = json.loads(body_bytes)
+                if "ciphertext" in body_json:
+                    sequence = body_json["sequence"]
+                    nonce_b64 = body_json["nonce"]
+                    ciphertext_b64 = body_json["ciphertext"]
+                    auth_tag_b64 = body_json["auth_tag"]
+                    
+                    nonce = base64.urlsafe_b64decode(nonce_b64 + "=" * (-len(nonce_b64) % 4))
+                    aad = f"{session_id}:{sequence}".encode("utf-8")
+                    
+                    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+                    
+                    ciphertext = base64.urlsafe_b64decode(ciphertext_b64 + "=" * (-len(ciphertext_b64) % 4))
+                    tag = base64.urlsafe_b64decode(auth_tag_b64 + "=" * (-len(auth_tag_b64) % 4))
+                    
+                    aesgcm = AESGCM(state.aes_key)
+                    plaintext = aesgcm.decrypt(nonce, ciphertext + tag, aad)
+                    
+                    body_bytes = plaintext
+            except Exception as e:
+                logger.error("Failed to decrypt forward request: %s", e)
+
+        url = f"{self.local_url}{path}"
+        if query:
+            url = f"{url}?{query}"
+
+        logger.error(body_bytes)
+        logger.error(headers)
+        logger.error(method)
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    content=body_bytes,
+                    timeout=30.0,
+                )
+
+                resp_body_bytes = resp.content
+
+                if state and state.status == "ready":
+                    try:
+                        state.server_sequence = getattr(state, "server_sequence", 0) + 1
+                        sequence_bytes = state.server_sequence.to_bytes(len(state.nonce_base), "big")
+                        resp_nonce = bytes(a ^ b for a, b in zip(state.nonce_base, sequence_bytes))
+                        resp_aad = f"{session_id}:{state.server_sequence}".encode("utf-8")
+                        
+                        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+                        aesgcm = AESGCM(state.aes_key)
+                        resp_ciphertext = aesgcm.encrypt(resp_nonce, resp_body_bytes, resp_aad)
+                        
+                        resp_cipher_part = base64.urlsafe_b64encode(resp_ciphertext[:-16]).rstrip(b"=").decode("ascii")
+                        resp_tag_part = base64.urlsafe_b64encode(resp_ciphertext[-16:]).rstrip(b"=").decode("ascii")
+                        
+                        encrypted_resp = {
+                            "status": "ok",
+                            "sequence": state.server_sequence,
+                            "nonce": base64.urlsafe_b64encode(resp_nonce).rstrip(b"=").decode("ascii"),
+                            "ciphertext": resp_cipher_part,
+                            "auth_tag": resp_tag_part
+                        }
+                        
+                        resp_body_bytes = json.dumps(encrypted_resp).encode("utf-8")
+                    except Exception as e:
+                        logger.error("Failed to encrypt response: %s", e)
+
+                resp_body_b64 = base64.b64encode(resp_body_bytes).decode("ascii")
+
+                tunnel_resp = {
+                    "type": SessionRequestTypes.FORWARD,
+                    "request_id": request_id,
+                    "status": resp.status_code,
+                    "headers": {},
+                    "body": resp_body_b64,
+                }
+
+                await self._send_response(tunnel_resp)
+        except Exception as exc:
+            logger.error("Failed to forward request %s: %s", request_id, exc)
+            tunnel_resp = {
+                "type": SessionRequestTypes.FORWARD,
+                "request_id": request_id,
+                "status": 502,
+                "headers": {},
+                "body": "",
+            }
+            await self._send_response(tunnel_resp)
 
     async def _handle_auth_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
@@ -159,7 +265,6 @@ class ProxyAgent:
             return
 
         session_id = session_id or ProxyState.new_session_id()
-        # TODO: move this to enum also
         self.session_states[session_id] = SessionState(
             session_id=session_id, status="authenticated"
         )
@@ -210,101 +315,7 @@ class ProxyAgent:
         response.server_dh_pubkey = int_to_b64(server_public)
         await self._send_response(response)
 
-    async def _handle_encrypted_message(self, message: dict[str, Any]) -> None:
-        request_id = message["request_id"]
-        session_id = message["session_id"]
-        state = self.session_states.get(session_id)
-        response = MessageResponse(
-            type="message_response",
-            request_id=request_id,
-            session_id=session_id,
-            status=ResponseStatus.FAILED,
-        )
-
-        if state is None or state.status != "ready":
-            response.status = ResponseStatus.FAILED
-            response.reason = "Session not ready"
-            await self._send_response(response)
-            return
-
-        sequence = int(message.get("sequence", -1))
-        # TODO: the nonce is not yet used because there's no request from parent client to fetch data yet
-        # nonce = message.get("nonce")
-        ciphertext = message.get("ciphertext")
-        auth_tag = message.get("auth_tag")
-        aad = f"{session_id}:{sequence}".encode("utf-8")
-
-        if sequence != state.client_sequence + 1:
-            response.status = ResponseStatus.FAILED
-            response.reason = "Invalid sequence"
-            await self._send_response(response)
-            return
-
-        try:
-            plaintext = decrypt_message(
-                state.aes_key,
-                xor_nonce(state.nonce_base, sequence),
-                ciphertext,
-                auth_tag,
-                aad,
-            )
-            payload = json.loads(plaintext.decode("utf-8"))
-        except Exception as exc:
-            logger.warning("Failed to decrypt client payload: %s", exc)
-            response.status = ResponseStatus.FAILED
-            response.reason = "Invalid encrypted payload"
-            await self._send_response(response)
-            return
-
-        state.client_sequence = sequence
-
-        try:
-            ingest_result = await self._process_request(payload)
-        except Exception as exc:
-            logger.warning("Ingest processing failed: %s", exc)
-            response.status = ResponseStatus.FAILED
-            response.reason = str(exc)
-            await self._send_response(response)
-            return
-
-        response_payload = json.dumps(
-            {"status": ResponseStatus.SUCCESS.value, "result": ingest_result}
-        ).encode("utf-8")
-
-        state.server_sequence += 1
-        server_sequence = state.server_sequence
-        server_nonce = xor_nonce(state.nonce_base, server_sequence)
-        ciphertext_b64, tag_b64 = encrypt_message(
-            state.aes_key,
-            server_nonce,
-            response_payload,
-            f"{session_id}:{server_sequence}".encode("utf-8"),
-        )
-
-        response.status = ResponseStatus.SUCCESS
-        response.sequence = server_sequence
-        response.nonce = (
-            base64.urlsafe_b64encode(server_nonce).rstrip(b"=").decode("ascii")
-        )
-        response.ciphertext = ciphertext_b64
-        response.auth_tag = tag_b64
-        await self._send_response(response)
-
-    async def _process_request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        platform_raw = payload.get("platform")
-        user_id = payload.get("user_id")
-        server_id = payload.get("server_id")
-        message = payload.get("message")
-        if not all([platform_raw, user_id, server_id, message]):
-            raise ValueError("Invalid ingest payload")
-
-        platform = ChatPlatform(platform_raw)
-        with SessionLocal() as db:
-            await process_ingest(db, platform, user_id, server_id, message)
-
-        return {"ingested": True}
-
-    async def _send_response(self, response: dict[str, Any]) -> None:
+    async def _send_response(self, response: dict[str, Any] | BaseModel) -> None:
         if self.websocket is None:
             logger.warning("No websocket to send proxy response")
             return
@@ -324,7 +335,7 @@ class ProxyState:
         self.password_code = self._create_password_code()
 
     @classmethod
-    def current(cls) -> "ProxyState":
+    def current(cls) -> ProxyState:
         if cls._instance is None:
             cls._instance = ProxyState()
         return cls._instance

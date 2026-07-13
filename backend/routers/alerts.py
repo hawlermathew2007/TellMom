@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session
 import json
+from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
-from database.models import Alert, Parent, ChatMessage, ChildAccount
-from database.session import SessionLocal, get_db
-from core.dependencies import get_current_parent
-from schemas.alerts import AlertResponse, ChatMessageResponse
-from schemas.grooming import IncrementalAnalysisResponse
-from services.auth import get_parent_from_token
-from services.notifications import alert_manager
-from services.explanation import get_incremental_analysis
-from core.jwt import decode_stream_token
+from backend.database.models import Alert, Parent, ChatMessage, ChildAccount
+from backend.database.session import SessionLocal, get_db
+from backend.core.dependencies import get_current_parent
+from backend.schemas.alerts import AlertResponse, ChatMessageResponse
+from backend.schemas.grooming import IncrementalAnalysisResponse
+from backend.services.auth import get_parent_from_token
+from backend.services.notifications import alert_manager
+from backend.services.explanation import get_incremental_analysis
+from backend.core.jwt import decode_stream_token
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -65,6 +65,7 @@ def list_alerts(
     return response
 
 
+# TODO: fix this one also, send the acknowledge to the server right after
 @router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
 def acknowledge_alert(
     alert_id: int,

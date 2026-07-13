@@ -6,7 +6,6 @@ import hmac
 import json
 import logging
 import secrets
-from typing import Optional
 
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -26,7 +25,14 @@ class SecureProxyClient:
     )
     DH_G = 2
 
-    def __init__(self, proxy_url: str, server_id: str, password_code: str, client_id: str | None = None, timeout: float = 10.0):
+    def __init__(
+        self,
+        proxy_url: str,
+        server_id: str,
+        password_code: str,
+        client_id: str | None = None,
+        timeout: float = 10.0,
+    ):
         self.proxy_url = proxy_url.rstrip("/")
         self.server_id = server_id
         self.password_code = password_code
@@ -75,7 +81,9 @@ class SecureProxyClient:
         previous = b""
         counter = 1
         while len(result) < length:
-            previous = hmac.new(prk, previous + info + bytes([counter]), hashlib.sha256).digest()
+            previous = hmac.new(
+                prk, previous + info + bytes([counter]), hashlib.sha256
+            ).digest()
             result += previous
             counter += 1
         return result[:length]
@@ -93,7 +101,9 @@ class SecureProxyClient:
         return bytes(a ^ b for a, b in zip(nonce_base, sequence_bytes))
 
     @staticmethod
-    def _encrypt(aes_key: bytes, nonce: bytes, plaintext: bytes, aad: bytes) -> tuple[str, str]:
+    def _encrypt(
+        aes_key: bytes, nonce: bytes, plaintext: bytes, aad: bytes
+    ) -> tuple[str, str]:
         aesgcm = AESGCM(aes_key)
         ciphertext = aesgcm.encrypt(nonce, plaintext, aad)
         return (
@@ -102,8 +112,12 @@ class SecureProxyClient:
         )
 
     @staticmethod
-    def _decrypt(aes_key: bytes, nonce: bytes, ciphertext_b64: str, tag_b64: str, aad: bytes) -> bytes:
-        ciphertext = base64.urlsafe_b64decode(ciphertext_b64 + "=" * (-len(ciphertext_b64) % 4))
+    def _decrypt(
+        aes_key: bytes, nonce: bytes, ciphertext_b64: str, tag_b64: str, aad: bytes
+    ) -> bytes:
+        ciphertext = base64.urlsafe_b64decode(
+            ciphertext_b64 + "=" * (-len(ciphertext_b64) % 4)
+        )
         tag = base64.urlsafe_b64decode(tag_b64 + "=" * (-len(tag_b64) % 4))
         aesgcm = AESGCM(aes_key)
         return aesgcm.decrypt(nonce, ciphertext + tag, aad)
@@ -114,7 +128,9 @@ class SecureProxyClient:
             "password_code": self.password_code,
             "client_id": self.client_id,
         }
-        response = await self._client.post(f"{self.proxy_url}/session/auth", json=payload)
+        response = await self._client.post(
+            f"{self.proxy_url}/session/auth", json=payload
+        )
         response.raise_for_status()
         data = response.json()
         if data.get("status") != "ok" or not data.get("session_id"):
@@ -162,9 +178,8 @@ class SecureProxyClient:
         )
 
         response = await self._client.post(
-            f"{self.proxy_url}/session/message",
+            f"{self.proxy_url}/session/{self.session_id}/message",
             json={
-                "session_id": self.session_id,
                 "sequence": self.sequence,
                 "nonce": self._serialize_b64(nonce),
                 "ciphertext": ciphertext,
@@ -195,8 +210,8 @@ class IngestClient:
         self,
         backend_url: str | None,
         server_id: str,
+        proxy_url: str,
         timeout: float = 10.0,
-        proxy_url: str | None = None,
         password_code: str | None = None,
         client_id: str | None = None,
     ):
@@ -205,10 +220,18 @@ class IngestClient:
         self.proxy_url = proxy_url
         self.password_code = password_code or ""
         self._timeout = timeout
-        self._client = SecureProxyClient(
-            proxy_url, server_id, self.password_code, client_id=client_id, timeout=timeout
-        ) if proxy_url else None
-        self._backend_client = httpx.AsyncClient(timeout=timeout) if not proxy_url else None
+        self._client = (
+            SecureProxyClient(
+                proxy_url,
+                server_id,
+                self.password_code,
+                client_id=client_id,
+                timeout=timeout,
+            )
+            if proxy_url
+            else None
+        )
+        self._backend_client = httpx.AsyncClient(timeout=timeout)
 
     async def send(self, payload: dict) -> None:
         if self._client is not None:
@@ -218,9 +241,44 @@ class IngestClient:
         assert self.backend_url is not None
         resp = await self._backend_client.post(self.backend_url, json=payload)
         resp.raise_for_status()
+        
+    async def send_with_retry(self, payload: dict, max_retries: int = 5) -> None:
+        import asyncio
+        delay = 1.0
+        for attempt in range(1, max_retries + 1):
+            try:
+                await self.send(payload)
+                return
+            except httpx.HTTPStatusError as exc:
+                if 400 <= exc.response.status_code < 500:
+                    log.error(
+                        "Backend rejected message (status %d): %s",
+                        exc.response.status_code,
+                        exc.response.text,
+                    )
+                    return
+                log.warning(
+                    "Server error sending message (attempt %d/%d): %s",
+                    attempt,
+                    max_retries,
+                    exc,
+                )
+            except httpx.HTTPError as exc:
+                log.warning(
+                    "Network error sending message (attempt %d/%d): %s",
+                    attempt,
+                    max_retries,
+                    exc,
+                )
+
+            if attempt < max_retries:
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
+        log.error("Giving up on message after %d attempts", max_retries)
 
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()
         if self._backend_client is not None:
             await self._backend_client.aclose()
+

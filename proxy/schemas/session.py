@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from shared.schemas.response import ResponseStatus
-from shared.schemas.session import SessionRequestTypes
 
 
 class SessionAuthRequest(BaseModel):

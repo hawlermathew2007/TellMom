@@ -1,43 +1,22 @@
 """
 Minecraft chat log adapter.
-
-Tails a Minecraft server/client log file, extracts chat messages, and POSTs
-each one to the backend /ingest endpoint. Guarantees:
-
-  - Only new lines are read (persisted byte offset -> survives restarts).
-  - Each parsed chat message is sent at most once (persisted "last sent"
-    marker, keyed by file offset, guards against duplicate sends if the
-    process crashes mid-batch).
-
-Log lines this adapter recognizes (from `Server thread/INFO`, ignoring the
-`[CHAT]` render-thread echo which is a duplicate of the same message):
-
-    [18:13:15] [Server thread/INFO]: [Not Secure] <ChillMathew> hello guys
-    [18:13:15] [Server thread/INFO]: <ChillMathew> hello guys   (secure variant)
-
-Usage:
-    python minecraft_log_adapter.py --log /path/to/latest.log \
-        --backend-url http://localhost:8000/ingest \
-        --server-id my-survival-server
 """
-
 from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
-import hashlib
-import hmac
 import json
 import logging
 import re
-import secrets
+import sys
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
-import httpx
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from adapters.base import BaseAdapter
+from adapters.client import IngestClient
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +24,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("minecraft_adapter")
 
-# Matches the server-side chat log line only (skips the render-thread [CHAT]
-# echo, and skips join/leave/system messages). Handles both the
-# "[Not Secure] <name> msg" and secure "<name> msg" forms.
+
 CHAT_LINE_RE = re.compile(
     r"""^\[\d{2}:\d{2}:\d{2}\]\s+
         \[Server\ thread/INFO\]:\s+
@@ -63,13 +40,10 @@ CHAT_LINE_RE = re.compile(
 class ChatMessage:
     username: str
     message: str
-    file_offset: int  # byte offset immediately after this line in the log
+    file_offset: int
 
 
 class OffsetStore:
-    """Persists (byte_offset, last_sent_offset) so restarts don't reprocess
-    or re-send lines."""
-
     def __init__(self, path: Path):
         self.path = path
         self.read_offset: int = 0
@@ -97,17 +71,11 @@ class OffsetStore:
 
 
 class LogTailer:
-    """Reads new complete lines appended to a growing log file, starting
-    from a persisted offset."""
-
     def __init__(self, log_path: Path, start_offset: int = 0):
         self.log_path = log_path
         self._offset = start_offset
 
     def read_new_lines(self) -> list[tuple[str, int]]:
-        """Returns list of (line, offset_after_line). Only returns complete
-        lines (ones ending in '\n'), so a partially-written line is left for
-        the next poll."""
         if not self.log_path.exists():
             return []
 
@@ -119,7 +87,6 @@ class LogTailer:
                 if not raw:
                     break
                 if not raw.endswith("\n"):
-                    # incomplete line at EOF, wait for more data
                     break
                 pos_after = f.tell()
                 lines.append((raw.rstrip("\n"), pos_after))
@@ -138,12 +105,6 @@ def parse_chat_message(line: str, offset: int) -> Optional[ChatMessage]:
     )
 
 
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from client import IngestClient
-
-
-
 async def run(
     log_path: Path,
     backend_url: str | None,
@@ -151,7 +112,7 @@ async def run(
     state_path: Path,
     poll_interval: float,
     max_retries: int,
-    proxy_url: str | None = None,
+    proxy_url: str,
     password_code: str | None = None,
 ) -> None:
     store = OffsetStore(state_path)
@@ -173,19 +134,24 @@ async def run(
             for line, offset_after in new_lines:
                 store.read_offset = offset_after
 
-                # Already sent this exact line in a prior run that crashed
-                # before we persisted read_offset past it.
                 if offset_after <= store.last_sent_offset:
                     continue
 
                 msg = parse_chat_message(line, offset_after)
                 if msg is None:
-                    # not a chat line (join/leave/system/etc) — still advance
-                    # read_offset, nothing to send.
                     store.save()
                     continue
 
-                await _send_with_retry(client, msg, max_retries)
+                payload = {
+                    "platform": "minecraft",
+                    "user_id": msg.username,
+                    "server_id": client.server_id,
+                    "message": msg.message,
+                }
+                
+                await client.send_with_retry(payload, max_retries)
+                log.info("Sent <%s> %s", msg.username, msg.message)
+                
                 store.last_sent_offset = offset_after
                 store.save()
 
@@ -194,56 +160,48 @@ async def run(
         await client.aclose()
 
 
-async def _send_with_retry(
-    client: IngestClient, msg: ChatMessage, max_retries: int
-) -> None:
-    delay = 1.0
-    for attempt in range(1, max_retries + 1):
-        try:
-            payload = {
-                "platform": "minecraft",
-                "user_id": msg.username,
-                "server_id": client.server_id,
-                "message": msg.message,
-            }
-            await client.send(payload)
-            log.info("Sent <%s> %s", msg.username, msg.message)
-            return
-        except httpx.HTTPStatusError as exc:
-            # 4xx: backend rejected the payload; don't spin forever on a bad
-            # message, log and move on so we don't block the whole stream.
-            if 400 <= exc.response.status_code < 500:
-                log.error(
-                    "Backend rejected message from %s (status %d): %s",
-                    msg.username,
-                    exc.response.status_code,
-                    exc.response.text,
-                )
-                return
-            log.warning(
-                "Server error sending message (attempt %d/%d): %s",
-                attempt,
-                max_retries,
-                exc,
-            )
-        except httpx.HTTPError as exc:
-            log.warning(
-                "Network error sending message (attempt %d/%d): %s",
-                attempt,
-                max_retries,
-                exc,
-            )
+class MinecraftAdapter(BaseAdapter):
+    def __init__(self):
+        super().__init__(
+            name="minecraft",
+            display_name="Minecraft Log Tailer",
+            default_config={
+                "log_path": "latest.log",
+                "backend_url": "http://localhost:8000/ingest",
+                "proxy_url": "",
+                "password_code": "",
+                "server_id": "my-survival-server",
+                "poll_interval": 1.0,
+                "max_retries": 5
+            },
+            description="Tails a Minecraft log and forwards chat"
+        )
+        
+    def launch(self, base_dir: Path, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+        args = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--log", str(config.get("log_path", "latest.log")),
+            "--server-id", str(config.get("server_id", "my-survival-server")),
+            "--poll-interval", str(config.get("poll_interval", 1.0)),
+            "--max-retries", str(config.get("max_retries", 5))
+        ]
+        
+        backend_url = config.get("backend_url", "")
+        if backend_url:
+            args.extend(["--backend-url", backend_url])
+            
+        proxy_url = config.get("proxy_url", "")
+        if proxy_url:
+            args.extend(["--proxy-url", proxy_url])
+            
+        password_code = config.get("password_code", "")
+        if password_code:
+            args.extend(["--password-code", password_code])
+            
+        return subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
 
-        if attempt < max_retries:
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, 30.0)
-    log.error(
-        "Giving up on message from %s after %d attempts: %s",
-        msg.username,
-        max_retries,
-        msg.message,
-    )
-
+plugin = MinecraftAdapter()
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -280,7 +238,7 @@ def main() -> None:
         "--state-file",
         type=Path,
         default=None,
-        help="Where to persist read/send offsets (default: <log>.adapter-state.json)",
+        help="Where to persist read/send offsets",
     )
     parser.add_argument(
         "--poll-interval", type=float, default=1.0, help="Seconds between log polls"
@@ -312,7 +270,6 @@ def main() -> None:
             password_code=args.password_code,
         )
     )
-
 
 if __name__ == "__main__":
     main()

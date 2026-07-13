@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
-from backend.core.registry import ChatPlatform
+from adapters.platforms import ChatPlatform
 
 
 class ChatMessageResponse(BaseModel):

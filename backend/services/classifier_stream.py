@@ -89,5 +89,4 @@ class ClassifierStreamManager:
                 self._pending.pop(request_id, None)
                 raise
 
-
 classifier_stream = ClassifierStreamManager()

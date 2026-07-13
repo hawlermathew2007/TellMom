@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-
-from backend.core.registry import ChatPlatform
+from adapters.platforms import ChatPlatform
 from backend.database.models import Alert, ChatMessage, ChildAccount, IncrementalAnalysis
 from backend.schemas.alerts import AlertResponse, ChatMessageResponse
 from backend.services.notifications import alert_manager

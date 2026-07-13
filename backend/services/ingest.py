@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect
 from collections import defaultdict
 
-from backend.core.registry import ChatPlatform
+from adapters.platforms import ChatPlatform
 from backend.core import config
 
 from backend.services.explanation import increment_unprocessed_count

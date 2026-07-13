@@ -1,31 +1,31 @@
-from fastapi import APIRouter, HTTPException
+import base64
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 
-from proxy.schemas.response import ResponseStatus
+from shared.schemas.response import ResponseStatus
+from shared.schemas.session import SessionRequestTypes
 from proxy.schemas.session import (
     SessionAuthRequest,
     SessionAuthResponse,
     SessionDhRequest,
     SessionDhResponse,
-    SessionMessageRequest,
-    SessionMessageResponse,
-    SessionRequestTypes
 )
 from proxy.services.session import (
     associate_session,
     get_server_for_session,
     send_proxy_request,
 )
-from shared.schemas.messages import AuthRequest, DhRequest, MessageRequest
+from shared.schemas.tunnel import TunnelRequest
+from shared.schemas.messages import AuthRequest, DhRequest
 
 router = APIRouter(prefix="/session", tags=["session"])
 
 
-# TODO: must change all these statuses to enums
 @router.post("/associate", response_model=SessionAuthResponse)
 async def authenticate_session(body: SessionAuthRequest) -> SessionAuthResponse:
     try:
         msg = AuthRequest(
-            type=SessionRequestTypes.ASSOCIATE.value,  # type: ignore[arg-type]
+            type=SessionRequestTypes.ASSOCIATE.value,
             server_id=body.server_id,
             password_code=body.password_code,
             client_id=body.client_id,
@@ -43,7 +43,9 @@ async def authenticate_session(body: SessionAuthRequest) -> SessionAuthResponse:
 
     session_id = response.get("session_id")
     if session_id is None:
-        raise HTTPException(status_code=500, detail="Missing session_id from proxy response")
+        raise HTTPException(
+            status_code=500, detail="Missing session_id from proxy response"
+        )
 
     associate_session(session_id, body.server_id)
     return SessionAuthResponse(session_id=session_id, status=ResponseStatus.SUCCESS)
@@ -66,42 +68,53 @@ async def exchange_dh(body: SessionDhRequest) -> SessionDhResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     if response.get("status") != ResponseStatus.SUCCESS.value:
-        raise HTTPException(status_code=400, detail=response.get("reason", "DH exchange failed"))
+        raise HTTPException(
+            status_code=400, detail=response.get("reason", "DH exchange failed")
+        )
 
     server_dh_pubkey = response.get("server_dh_pubkey")
     if server_dh_pubkey is None:
         raise HTTPException(status_code=500, detail="Missing server public key")
 
-    return SessionDhResponse(session_id=body.session_id, server_dh_pubkey=server_dh_pubkey)
+    return SessionDhResponse(
+        session_id=body.session_id, server_dh_pubkey=server_dh_pubkey
+    )
 
 
-@router.post("/message", response_model=SessionMessageResponse)
-async def forward_message(body: SessionMessageRequest) -> SessionMessageResponse:
-    server_id = get_server_for_session(body.session_id)
+@router.api_route(
+    "/{session_id}/forward/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+)
+async def forward_request(session_id: str, path: str, request: Request):
+    server_id = get_server_for_session(session_id)
     if server_id is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    body_bytes = await request.body()
+    body_b64 = base64.b64encode(body_bytes).decode("ascii")
+
+    headers = {k: v for k, v in request.headers.items()}
+
+    # Send the raw HTTP request data over the tunnel
+    tunnel_req = TunnelRequest(
+        request_id="",  # filled by send_proxy_request
+        session_id=session_id,
+        method=request.method,
+        path=f"/{path}",
+        query=request.url.query,
+        headers=headers,
+        body=body_b64,
+    )
+
     try:
-        # TODO: move all of tis to respective requests pydantic model and add a wrapper message around this 
-        msg = MessageRequest(
-            type=SessionRequestTypes.MESSAGE.value,  # type: ignore[arg-type]
-            session_id=body.session_id,
-            sequence=body.sequence,
-            nonce=body.nonce,
-            ciphertext=body.ciphertext,
-            auth_tag=body.auth_tag,
-        )
-        response = await send_proxy_request(server_id, msg)
+        response = await send_proxy_request(server_id, tunnel_req)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if response.get("status") != ResponseStatus.SUCCESS.value:
-        raise HTTPException(status_code=400, detail=response.get("reason", "Encrypted message rejected"))
+    status = response.get("status", 500)
+    resp_headers = response.get("headers", {})
+    resp_body_b64 = response.get("body", "")
 
-    return SessionMessageResponse(
-        session_id=body.session_id,
-        sequence=response["sequence"],
-        nonce=response["nonce"],
-        ciphertext=response["ciphertext"],
-        auth_tag=response["auth_tag"],
-    )
+    resp_body = base64.b64decode(resp_body_b64) if resp_body_b64 else b""
+
+    return Response(content=resp_body, status_code=status, headers=resp_headers)

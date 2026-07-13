@@ -2,8 +2,8 @@ import logging
 import json
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
+from shared.schemas.response import ResponseStatus
 from proxy.core.jwt import decode_stream_token
-from proxy.schemas.response import ResponseStatus
 from proxy.routers import auth, session
 from proxy.services.session import (
     handle_server_message,

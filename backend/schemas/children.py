@@ -1,8 +1,6 @@
 from datetime import datetime
-
 from pydantic import BaseModel, Field
-
-from core.registry import ChatPlatform
+from adapters.platforms import ChatPlatform
 
 
 class ChildAccountCreate(BaseModel):

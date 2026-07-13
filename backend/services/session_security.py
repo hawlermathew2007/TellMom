@@ -3,7 +3,6 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
-from typing import Tuple
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
