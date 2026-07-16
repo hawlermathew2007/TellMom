@@ -112,7 +112,7 @@ class ProxyAgent:
         handlers: dict[str, Any] = {
             SessionRequestTypes.ASSOCIATE.value: self._handle_auth_request,
             SessionRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
-            SessionRequestTypes.FORWARD: self._handle_forward_request,
+            SessionRequestTypes.FORWARD.value: self._handle_forward_request,
         }
 
         handler = handlers.get(str(message_type))
@@ -197,6 +197,7 @@ class ProxyAgent:
                 )
 
                 resp_body_bytes = resp.content
+                resp_status = resp.status_code
 
                 if state and state.status == "ready":
                     try:
@@ -221,15 +222,16 @@ class ProxyAgent:
                         }
                         
                         resp_body_bytes = json.dumps(encrypted_resp).encode("utf-8")
+                        resp_status = 200
                     except Exception as e:
                         logger.error("Failed to encrypt response: %s", e)
 
                 resp_body_b64 = base64.b64encode(resp_body_bytes).decode("ascii")
 
                 tunnel_resp = {
-                    "type": SessionRequestTypes.FORWARD,
+                    "type": SessionRequestTypes.FORWARD.value,
                     "request_id": request_id,
-                    "status": resp.status_code,
+                    "status": resp_status,
                     "headers": {},
                     "body": resp_body_b64,
                 }
@@ -238,7 +240,7 @@ class ProxyAgent:
         except Exception as exc:
             logger.error("Failed to forward request %s: %s", request_id, exc)
             tunnel_resp = {
-                "type": SessionRequestTypes.FORWARD,
+                "type": SessionRequestTypes.FORWARD.value,
                 "request_id": request_id,
                 "status": 502,
                 "headers": {},

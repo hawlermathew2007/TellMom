@@ -133,9 +133,7 @@ def test_full_proxy_roundtrip() -> None:
             resp = await client.post(
                 P_URL + f"/session/{session_id}/forward/message/ingest",
                 content=encrypted_body,
-                headers={
-                    "content-type": "application/json",
-                },
+                headers={"content-type": "application/json"},
             )
             print(resp.json())
             assert resp.status_code == 200
