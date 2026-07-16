@@ -1,16 +1,6 @@
-import os
-import json
+import yaml
 import subprocess
-import time
 from pathlib import Path
-from typing import Dict, Any, List
-
-try:
-    import yaml
-    HAS_YAML = True
-except ImportError:
-    HAS_YAML = False
-
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, DataTable, Log
 from textual.binding import Binding
@@ -18,7 +8,7 @@ from textual.binding import Binding
 from adapters.base import AdapterRegistry
 from adapters.minecraft.minecraft import plugin as minecraft_plugin
 
-CONFIG_FILE = Path(__file__).resolve().parent / ("config.yaml" if HAS_YAML else "config.json")
+CONFIG_FILE = Path(__file__).resolve().parent / "config.yaml"
 
 registry = AdapterRegistry()
 registry.register(minecraft_plugin)
@@ -56,7 +46,7 @@ class TellMomApp(App):
         if CONFIG_FILE.exists():
             try:
                 with open(CONFIG_FILE, "r") as f:
-                    user_cfg = yaml.safe_load(f) if HAS_YAML else json.load(f)
+                    user_cfg = yaml.safe_load(f)
                 if user_cfg:
                     for name, default_val in cfg.items():
                         if name in user_cfg:
@@ -64,16 +54,6 @@ class TellMomApp(App):
             except Exception:
                 pass
         return cfg
-
-    def save_config(self):
-        try:
-            with open(CONFIG_FILE, "w") as f:
-                if HAS_YAML:
-                    yaml.dump(self.config, f)
-                else:
-                    json.dump(self.config, f, indent=2)
-        except Exception:
-            pass
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)

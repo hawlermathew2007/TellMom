@@ -11,9 +11,9 @@ from typing import Any
 import httpx
 import websockets
 
-from shared.schemas.session import SessionRequestTypes
+from shared.schemas.tunnel import EncryptedMessage, TunnelRequestTypes, TunnelResponse
 from shared.schemas.response import ResponseStatus
-from backend.services.session_security import (
+from shared.services.security import (
     SessionState,
     b64_to_int,
     derive_dh_public_key,
@@ -21,6 +21,9 @@ from backend.services.session_security import (
     derive_session_keys,
     generate_dh_private_key,
     int_to_b64,
+    encrypt_message,
+    decrypt_message,
+    xor_nonce,
 )
 from shared.schemas.messages import (
     AuthResponse,
@@ -110,9 +113,9 @@ class ProxyAgent:
             return
 
         handlers: dict[str, Any] = {
-            SessionRequestTypes.ASSOCIATE.value: self._handle_auth_request,
-            SessionRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
-            SessionRequestTypes.FORWARD.value: self._handle_forward_request,
+            TunnelRequestTypes.ASSOCIATE.value: self._handle_auth_request,
+            TunnelRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
+            TunnelRequestTypes.FORWARD.value: self._handle_forward_request,
         }
 
         handler = handlers.get(str(message_type))
@@ -144,47 +147,56 @@ class ProxyAgent:
 
         # NOTE: remove the original content-length due to modification hapenning
         headers.pop("content-length", None)
-        headers.pop("transfer-encoding", None)
-        headers.pop("host", None)
-
         body_b64 = message.get("body", "")
-        
-        state = self.session_states.get(session_id) if session_id else None
 
+        state = self.session_states.get(session_id) if session_id else None
         body_bytes = base64.b64decode(body_b64) if body_b64 else b""
 
-        # TODO: the optional parameters in the State schema have proven to be rather troublesome also
-        if state and state.status == "ready" and body_bytes:
-            try:
-                body_json = json.loads(body_bytes)
-                if "ciphertext" in body_json:
-                    sequence = body_json["sequence"]
-                    nonce_b64 = body_json["nonce"]
-                    ciphertext_b64 = body_json["ciphertext"]
-                    auth_tag_b64 = body_json["auth_tag"]
-                    
-                    nonce = base64.urlsafe_b64decode(nonce_b64 + "=" * (-len(nonce_b64) % 4))
-                    aad = f"{session_id}:{sequence}".encode("utf-8")
-                    
-                    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-                    
-                    ciphertext = base64.urlsafe_b64decode(ciphertext_b64 + "=" * (-len(ciphertext_b64) % 4))
-                    tag = base64.urlsafe_b64decode(auth_tag_b64 + "=" * (-len(auth_tag_b64) % 4))
-                    
-                    aesgcm = AESGCM(state.aes_key)
-                    plaintext = aesgcm.decrypt(nonce, ciphertext + tag, aad)
-                    
-                    body_bytes = plaintext
-            except Exception as e:
-                logger.error("Failed to decrypt forward request: %s", e)
+        body = body_bytes.decode()
+        msg = EncryptedMessage.model_validate_json(body)
 
+        if state is None:
+            tunnel_resp = TunnelResponse(
+                request_id=request_id,
+                status=400,
+                body="Provided sequence number does not match with expected value!",
+            )
+            await self._send_response(tunnel_resp)
+            return
+
+        if state.sequence != msg.sequence:
+            tunnel_resp = TunnelResponse(
+                request_id=request_id,
+                status=400,
+                body=f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!",
+            )
+            await self._send_response(tunnel_resp)
+            return
+
+        if state.aes_key is None or state.nonce_base is None:
+            tunnel_resp = TunnelResponse(
+                request_id=request_id,
+                status=400,
+                body="User hasn't intitialized dh key exchange yet!",
+            )
+            await self._send_response(tunnel_resp)
+            return
+
+        try:
+            aad = f"{session_id}:{state.sequence}".encode()
+            body_bytes = decrypt_message(
+                aes_key=state.aes_key,
+                nonce_base=state.nonce_base,
+                encrypted_message=msg,
+                aad=aad,
+            )
+        except Exception as e:
+            logger.error("Failed to decrypt forward request: %s", e)
+
+        # Build the full path with query
         url = f"{self.local_url}{path}"
         if query:
             url = f"{url}?{query}"
-
-        logger.error(body_bytes)
-        logger.error(headers)
-        logger.error(method)
 
         try:
             async with httpx.AsyncClient() as client:
@@ -196,56 +208,33 @@ class ProxyAgent:
                     timeout=30.0,
                 )
 
-                resp_body_bytes = resp.content
+                resp_body = resp.content.decode()
                 resp_status = resp.status_code
 
-                if state and state.status == "ready":
-                    try:
-                        state.server_sequence = getattr(state, "server_sequence", 0) + 1
-                        sequence_bytes = state.server_sequence.to_bytes(len(state.nonce_base), "big")
-                        resp_nonce = bytes(a ^ b for a, b in zip(state.nonce_base, sequence_bytes))
-                        resp_aad = f"{session_id}:{state.server_sequence}".encode("utf-8")
-                        
-                        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-                        aesgcm = AESGCM(state.aes_key)
-                        resp_ciphertext = aesgcm.encrypt(resp_nonce, resp_body_bytes, resp_aad)
-                        
-                        resp_cipher_part = base64.urlsafe_b64encode(resp_ciphertext[:-16]).rstrip(b"=").decode("ascii")
-                        resp_tag_part = base64.urlsafe_b64encode(resp_ciphertext[-16:]).rstrip(b"=").decode("ascii")
-                        
-                        encrypted_resp = {
-                            "status": "ok",
-                            "sequence": state.server_sequence,
-                            "nonce": base64.urlsafe_b64encode(resp_nonce).rstrip(b"=").decode("ascii"),
-                            "ciphertext": resp_cipher_part,
-                            "auth_tag": resp_tag_part
-                        }
-                        
-                        resp_body_bytes = json.dumps(encrypted_resp).encode("utf-8")
-                        resp_status = 200
-                    except Exception as e:
-                        logger.error("Failed to encrypt response: %s", e)
-
+                state.sequence = state.sequence + 1
+                ciphertext = encrypt_message(
+                    sequence=state.sequence,
+                    aes_key=state.aes_key,
+                    nonce_base=state.nonce_base,
+                    plaintext=resp_body,
+                    session_id=session_id,
+                )
+                resp_body_bytes = ciphertext.model_dump_json().encode()
                 resp_body_b64 = base64.b64encode(resp_body_bytes).decode("ascii")
+                resp_status = 200
 
-                tunnel_resp = {
-                    "type": SessionRequestTypes.FORWARD.value,
-                    "request_id": request_id,
-                    "status": resp_status,
-                    "headers": {},
-                    "body": resp_body_b64,
-                }
-
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=resp_status,
+                    body=resp_body_b64,
+                )
                 await self._send_response(tunnel_resp)
+
         except Exception as exc:
             logger.error("Failed to forward request %s: %s", request_id, exc)
-            tunnel_resp = {
-                "type": SessionRequestTypes.FORWARD.value,
-                "request_id": request_id,
-                "status": 502,
-                "headers": {},
-                "body": "",
-            }
+            tunnel_resp = TunnelResponse(
+                request_id=request_id, status=502, body=f"Error: {exc}"
+            )
             await self._send_response(tunnel_resp)
 
     async def _handle_auth_request(self, message: dict[str, Any]) -> None:
@@ -253,7 +242,6 @@ class ProxyAgent:
         session_id = message.get("session_id") or ""
 
         response = AuthResponse(
-            type="auth_response",
             request_id=request_id,
             session_id=session_id,
             status=ResponseStatus.FAILED,
@@ -279,7 +267,6 @@ class ProxyAgent:
         session_id = message["session_id"]
         state = self.session_states.get(session_id)
         response = DhResponse(
-            type="dh_response",
             request_id=request_id,
             session_id=session_id,
             status=ResponseStatus.FAILED,
@@ -309,9 +296,7 @@ class ProxyAgent:
         state.server_public = server_public
         state.aes_key = aes_key
         state.nonce_base = nonce_base
-        state.status = "ready"
-        state.client_sequence = 0
-        state.server_sequence = 0
+        state.status = ResponseStatus.SUCCESS.value
 
         response.status = ResponseStatus.SUCCESS
         response.server_dh_pubkey = int_to_b64(server_public)

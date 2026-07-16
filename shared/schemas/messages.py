@@ -37,7 +37,7 @@ ProxyRequest = Annotated[
 
 
 class AuthResponse(BaseModel):
-    type: Literal["auth_response"]
+    type: Literal["auth_response"] = "auth_response"
     request_id: str
     session_id: str | None = None
     status: ResponseStatus
@@ -45,7 +45,7 @@ class AuthResponse(BaseModel):
 
 
 class DhResponse(BaseModel):
-    type: Literal["dh_response"]
+    type: Literal["dh_response"] = "dh_response"
     request_id: str
     session_id: str
     status: ResponseStatus
@@ -54,7 +54,7 @@ class DhResponse(BaseModel):
 
 
 class MessageResponse(BaseModel):
-    type: Literal["message_response"]
+    type: Literal["message_response"] = "message_response"
     request_id: str
     session_id: str
     status: ResponseStatus

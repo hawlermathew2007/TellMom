@@ -1,16 +1,17 @@
+import asyncio
 import threading
 import time
-import asyncio
-import json
 
 import httpx
-import base64
 import uvicorn
 
+from adapters.platforms import ChatPlatform
+from backend.schemas.ingest import IngestRequest
 from proxy.database.session import init_db as proxy_init_db
 from backend.database.session import init_db as backend_init_db
 from backend.services.proxy_agent import ProxyAgent, ProxyState
-from backend.services import session_security as sec
+from shared.schemas.tunnel import EncryptedMessage
+from shared.services import security as sec
 
 
 def _wait_server(url: str):
@@ -58,9 +59,7 @@ def test_full_proxy_roundtrip() -> None:
 
     B_HOST, B_PORT = "localhost", 8080
     B_URL = f"http://{B_HOST}:{B_PORT}"
-    b_thread, b_server = _start_server(
-        "backend.main:app", host=B_HOST, port=B_PORT, log_level="debug"
-    )
+    b_thread, b_server = _start_server("backend.main:app", host=B_HOST, port=B_PORT)
 
     _wait_server(P_URL)
     _wait_server(B_URL)
@@ -103,42 +102,45 @@ def test_full_proxy_roundtrip() -> None:
             server_pub_b64 = resp.json().get("server_dh_pubkey")
             assert server_pub_b64
 
+            # These should oly be calculated once and saved and reused
             server_pub = sec.b64_to_int(server_pub_b64)
             shared = sec.derive_shared_secret(client_priv, server_pub)
             aes_key, nonce_base, _ = sec.derive_session_keys(shared)
 
+            # Dummy sequence
             sequence = 1
-            nonce = sec.xor_nonce(nonce_base, sequence)
-            payload = json.dumps(
-                {
-                    "platform": "discord",
-                    "user_id": "user-1",
-                    "server_id": "server-1",
-                    "message": "hello tunnel",
-                }
-            ).encode("utf-8")
-            aad = f"{session_id}:{sequence}".encode("utf-8")
-            ciphertext_b64, tag_b64 = sec.encrypt_message(aes_key, nonce, payload, aad)
-            nonce_b64 = (base64.urlsafe_b64encode(nonce).rstrip(b"=")).decode("ascii")
 
-            encrypted_body = json.dumps(
-                {
-                    "sequence": sequence,
-                    "nonce": nonce_b64,
-                    "ciphertext": ciphertext_b64,
-                    "auth_tag": tag_b64,
-                }
-            ).encode()
+            payload = IngestRequest(
+                platform=ChatPlatform.DISCORD,
+                user_id="user-1",
+                server_id="server-1",
+                message="hello tunnel",
+            )
+
+            encrypted_body = sec.encrypt_message(
+                sequence=sequence,
+                aes_key=aes_key,
+                nonce_base=nonce_base,
+                plaintext=payload.model_dump_json(),
+                session_id=session_id,
+            ).model_dump_json()
 
             resp = await client.post(
                 P_URL + f"/session/{session_id}/forward/message/ingest",
                 content=encrypted_body,
                 headers={"content-type": "application/json"},
             )
-            print(resp.json())
             assert resp.status_code == 200
-            # resp_data = resp.json()
-            # assert resp_data.get("status") == "success"
+            
+            resp_enc_msg = EncryptedMessage.model_validate(resp.json())
+            decrypted_bytes = sec.decrypt_message(
+                aes_key=aes_key,
+                nonce_base=nonce_base,
+                encrypted_message=resp_enc_msg,
+                aad=f"{session_id}:{sequence+1}".encode(),
+            )
+            # The ingest endpoint returns 204 No Content with empty body
+            assert decrypted_bytes == b""
 
     # run async scenario
     asyncio.run(scenario())

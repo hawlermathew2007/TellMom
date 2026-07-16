@@ -1,6 +1,6 @@
-from typing import Literal
 from pydantic import BaseModel, Field
 from adapters.platforms import ChatPlatform
+from shared.schemas.response import ResponseStatus
 
 
 class IngestRequest(BaseModel):
@@ -17,7 +17,7 @@ class ClassifierCheckInRequest(BaseModel):
 
 
 class ClassifierCheckInResponse(BaseModel):
-    status: Literal["ok"] = "ok"
+    status: ResponseStatus
     message: str = "Classifier registered"
     token: str
 

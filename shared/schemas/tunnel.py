@@ -1,8 +1,15 @@
 from pydantic import BaseModel
-from shared.schemas.session import SessionRequestTypes
+from enum import Enum
+
+
+class TunnelRequestTypes(str, Enum):
+    ASSOCIATE = "ASSOCIATE"
+    KEY_EXCHANGE = "KEY_EXCHANGE"
+    FORWARD = "FORWARD"
+
 
 class TunnelRequest(BaseModel):
-    type: SessionRequestTypes = SessionRequestTypes.FORWARD
+    type: TunnelRequestTypes = TunnelRequestTypes.FORWARD
     request_id: str
     session_id: str
     method: str
@@ -11,9 +18,17 @@ class TunnelRequest(BaseModel):
     headers: dict[str, str]
     body: str
 
+
 class TunnelResponse(BaseModel):
-    type: SessionRequestTypes = SessionRequestTypes.FORWARD
+    type: TunnelRequestTypes = TunnelRequestTypes.FORWARD
     request_id: str
-    status: int
-    headers: dict[str, str]
-    body: str
+    status: int = 200
+    headers: dict[str, str] = {}
+    body: str = ""
+
+
+class EncryptedMessage(BaseModel):
+    sequence: int
+    nonce: str
+    ciphertext: str
+    auth_tag: str

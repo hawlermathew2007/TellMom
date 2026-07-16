@@ -1,30 +1,26 @@
 from __future__ import annotations
 
 import base64
-import hashlib
-import hmac
 import json
 import logging
-import secrets
 
 import httpx
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from shared.schemas.response import ResponseStatus
+from shared.services.security import (
+    generate_dh_private_key,
+    derive_dh_public_key,
+    derive_shared_secret,
+    derive_session_keys,
+    encrypt_message,
+    decrypt_message,
+    int_to_b64,
+    b64_to_int,
+)
 
 log = logging.getLogger("tellmom.client")
 
 
 class SecureProxyClient:
-    DH_P = int(
-        "FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1"
-        "29024E08 8A67CC74 020BBEA6 3B139B22 514A0879 8E3404DD"
-        "EF9519B3 CD3A431B 302B0A6D F25F1437 4FE1356D 6D51C245"
-        "E485B576 625E7EC6 F44C42E9 A637ED6B 0BFF5CB6 F406B7ED"
-        "EE386BFB 5A899FA5 AE9F2411 7C4B1FE6 49286651 ECE65381"
-        "FFFFFFFF FFFFFFFF",
-        16,
-    )
-    DH_G = 2
-
     def __init__(
         self,
         proxy_url: str,
@@ -44,84 +40,6 @@ class SecureProxyClient:
         self.sequence = 0
         self.client_private = None
 
-    @staticmethod
-    def _serialize_b64(raw: bytes) -> str:
-        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-
-    @staticmethod
-    def _deserialize_b64(value: str) -> bytes:
-        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-
-    @staticmethod
-    def _int_to_b64(value: int) -> str:
-        raw = value.to_bytes((value.bit_length() + 7) // 8 or 1, "big")
-        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-
-    @staticmethod
-    def _b64_to_int(value: str) -> int:
-        raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-        return int.from_bytes(raw, "big")
-
-    def _generate_dh_private_key(self) -> int:
-        return secrets.randbelow(self.DH_P - 2) + 2
-
-    def _derive_dh_public_key(self, private_key: int) -> int:
-        return pow(self.DH_G, private_key, self.DH_P)
-
-    def _derive_shared_secret(self, private_key: int, peer_public: int) -> bytes:
-        shared = pow(peer_public, private_key, self.DH_P)
-        secret_bytes = shared.to_bytes((shared.bit_length() + 7) // 8 or 1, "big")
-        return hashlib.sha256(secret_bytes).digest()
-
-    def _hkdf_extract(self, salt: bytes, ikm: bytes) -> bytes:
-        return hmac.new(salt, ikm, hashlib.sha256).digest()
-
-    def _hkdf_expand(self, prk: bytes, info: bytes, length: int) -> bytes:
-        result = b""
-        previous = b""
-        counter = 1
-        while len(result) < length:
-            previous = hmac.new(
-                prk, previous + info + bytes([counter]), hashlib.sha256
-            ).digest()
-            result += previous
-            counter += 1
-        return result[:length]
-
-    def _derive_session_keys(self, shared_secret: bytes) -> tuple[bytes, bytes, bytes]:
-        prk = self._hkdf_extract(b"", shared_secret)
-        aes_key = self._hkdf_expand(prk, b"aes-gcm", 32)
-        nonce_base = self._hkdf_expand(prk, b"nonce", 12)
-        future_keys = self._hkdf_expand(prk, b"future", 32)
-        return aes_key, nonce_base, future_keys
-
-    @staticmethod
-    def _xor_nonce(nonce_base: bytes, sequence: int) -> bytes:
-        sequence_bytes = sequence.to_bytes(len(nonce_base), "big")
-        return bytes(a ^ b for a, b in zip(nonce_base, sequence_bytes))
-
-    @staticmethod
-    def _encrypt(
-        aes_key: bytes, nonce: bytes, plaintext: bytes, aad: bytes
-    ) -> tuple[str, str]:
-        aesgcm = AESGCM(aes_key)
-        ciphertext = aesgcm.encrypt(nonce, plaintext, aad)
-        return (
-            base64.urlsafe_b64encode(ciphertext[:-16]).rstrip(b"=").decode("ascii"),
-            base64.urlsafe_b64encode(ciphertext[-16:]).rstrip(b"=").decode("ascii"),
-        )
-
-    @staticmethod
-    def _decrypt(
-        aes_key: bytes, nonce: bytes, ciphertext_b64: str, tag_b64: str, aad: bytes
-    ) -> bytes:
-        ciphertext = base64.urlsafe_b64decode(
-            ciphertext_b64 + "=" * (-len(ciphertext_b64) % 4)
-        )
-        tag = base64.urlsafe_b64decode(tag_b64 + "=" * (-len(tag_b64) % 4))
-        aesgcm = AESGCM(aes_key)
-        return aesgcm.decrypt(nonce, ciphertext + tag, aad)
-
     async def _authenticate(self) -> None:
         payload = {
             "server_id": self.server_id,
@@ -133,28 +51,28 @@ class SecureProxyClient:
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != "ok" or not data.get("session_id"):
+        if data.get("status") != ResponseStatus.SUCCESS.value or not data.get("session_id"):
             raise RuntimeError(data.get("reason", "Authentication failed"))
         self.session_id = data["session_id"]
 
     async def _exchange_dh(self) -> None:
-        self.client_private = self._generate_dh_private_key()
-        client_pub = self._derive_dh_public_key(self.client_private)
+        self.client_private = generate_dh_private_key()
+        client_pub = derive_dh_public_key(self.client_private)
         response = await self._client.post(
             f"{self.proxy_url}/session/dh",
             json={
                 "session_id": self.session_id,
-                "client_dh_pubkey": self._int_to_b64(client_pub),
+                "client_dh_pubkey": int_to_b64(client_pub),
             },
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != "ok":
+        if data.get("status") != ResponseStatus.SUCCESS.value:
             raise RuntimeError(data.get("reason", "DH exchange failed"))
 
-        server_pub = self._b64_to_int(data["server_dh_pubkey"])
-        shared_secret = self._derive_shared_secret(self.client_private, server_pub)
-        self.aes_key, self.nonce_base, _ = self._derive_session_keys(shared_secret)
+        server_pub = b64_to_int(data["server_dh_pubkey"])
+        shared_secret = derive_shared_secret(self.client_private, server_pub)
+        self.aes_key, self.nonce_base, _ = derive_session_keys(shared_secret)
 
     async def ensure_handshake(self) -> None:
         if self.session_id is None:
@@ -168,32 +86,29 @@ class SecureProxyClient:
         assert self.aes_key is not None and self.nonce_base is not None
 
         self.sequence += 1
-        nonce = self._xor_nonce(self.nonce_base, self.sequence)
-        aad = f"{self.session_id}:{self.sequence}".encode("utf-8")
-        ciphertext, auth_tag = self._encrypt(
-            self.aes_key,
-            nonce,
-            json.dumps(payload).encode("utf-8"),
-            aad,
+        encrypted_message = encrypt_message(
+            sequence=self.sequence,
+            aes_key=self.aes_key,
+            nonce_base=self.nonce_base,
+            plaintext=json.dumps(payload),
+            session_id=self.session_id,
         )
 
         response = await self._client.post(
             f"{self.proxy_url}/session/{self.session_id}/message",
-            json={
-                "sequence": self.sequence,
-                "nonce": self._serialize_b64(nonce),
-                "ciphertext": ciphertext,
-                "auth_tag": auth_tag,
-            },
+            json=encrypted_message,
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != "ok":
+        if data.get("status") != ResponseStatus.SUCCESS.value:
             raise RuntimeError(data.get("reason", "Encrypted message rejected"))
 
         server_sequence = data.get("sequence")
-        server_nonce = self._deserialize_b64(data.get("nonce", ""))
-        self._decrypt(
+        server_nonce_str = data.get("nonce", "")
+        server_nonce = base64.urlsafe_b64decode(
+            server_nonce_str + "=" * (-len(server_nonce_str) % 4)
+        )
+        decrypt_message(
             self.aes_key,
             server_nonce,
             data.get("ciphertext", ""),
@@ -241,9 +156,10 @@ class IngestClient:
         assert self.backend_url is not None
         resp = await self._backend_client.post(self.backend_url, json=payload)
         resp.raise_for_status()
-        
+
     async def send_with_retry(self, payload: dict, max_retries: int = 5) -> None:
         import asyncio
+
         delay = 1.0
         for attempt in range(1, max_retries + 1):
             try:
@@ -281,4 +197,3 @@ class IngestClient:
             await self._client.aclose()
         if self._backend_client is not None:
             await self._backend_client.aclose()
-

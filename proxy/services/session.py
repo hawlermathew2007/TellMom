@@ -4,7 +4,6 @@ import logging
 import uuid
 from typing import Any
 from pydantic import BaseModel
-
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)

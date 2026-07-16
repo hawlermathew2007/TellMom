@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
 from shared.schemas.response import ResponseStatus
-from shared.schemas.session import SessionRequestTypes
+from shared.schemas.tunnel import TunnelRequestTypes
 from proxy.schemas.session import (
     SessionAuthRequest,
     SessionAuthResponse,
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/session", tags=["session"])
 async def authenticate_session(body: SessionAuthRequest) -> SessionAuthResponse:
     try:
         msg = AuthRequest(
-            type=SessionRequestTypes.ASSOCIATE.value,
+            type=TunnelRequestTypes.ASSOCIATE.value,
             server_id=body.server_id,
             password_code=body.password_code,
             client_id=body.client_id,
@@ -59,7 +59,7 @@ async def exchange_dh(body: SessionDhRequest) -> SessionDhResponse:
 
     try:
         msg = DhRequest(
-            type=SessionRequestTypes.KEY_EXCHANGE.value,  # type: ignore[arg-type]
+            type=TunnelRequestTypes.KEY_EXCHANGE.value,  # type: ignore[arg-type]
             session_id=body.session_id,
             client_dh_pubkey=body.client_dh_pubkey,
         )
@@ -115,6 +115,7 @@ async def forward_request(session_id: str, path: str, request: Request):
     resp_headers = response.get("headers", {})
     resp_body_b64 = response.get("body", "")
 
-    resp_body = base64.b64decode(resp_body_b64) if resp_body_b64 else b""
+    padding = "=" * (-len(body_b64) % 4)
+    resp_body = base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
 
     return Response(content=resp_body, status_code=status, headers=resp_headers)
