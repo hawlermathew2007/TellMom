@@ -4,8 +4,8 @@ import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from core import config
-from database.models import Parent
+from backend.core import config
+from backend.database.models import Parent
 
 
 def hash_password(password: str) -> str:

@@ -1,9 +1,8 @@
 from sqlalchemy.orm import Session
-
-from core.registry import ChatPlatform
-from database.models import Alert, ChatMessage, ChildAccount, IncrementalAnalysis
-from schemas.alerts import AlertResponse, ChatMessageResponse
-from services.notifications import alert_manager
+from adapters.platforms import ChatPlatform
+from backend.database.models import Alert, ChatMessage, ChildAccount, IncrementalAnalysis
+from backend.schemas.alerts import AlertResponse, ChatMessageResponse
+from backend.services.notifications import alert_manager
 
 
 def add_message_db(

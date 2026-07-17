@@ -1,22 +1,22 @@
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from database.models import ChildAccount
 from fastapi import HTTPException
-from services.classifier_stream import classifier_stream
+from backend.database.models import ChildAccount
+from backend.services.classifier_stream import classifier_stream
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect
 from collections import defaultdict
 
-from core.registry import ChatPlatform
-from core import config
+from adapters.platforms import ChatPlatform
+from backend.core import config
 
-from services.explanation import increment_unprocessed_count
-from services.messages import (
+from backend.services.explanation import increment_unprocessed_count
+from backend.services.messages import (
     add_message_db,
     notify_parent,
 )
-from core.cache import message_cache, sync_message_cache
+from backend.core.cache import message_cache, sync_message_cache
 
 logger = logging.getLogger(__name__)
 
