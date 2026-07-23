@@ -98,9 +98,10 @@ export default function App() {
     // Handle WebSocket Connection
     useEffect(() => {
         if (!token) return;
+        
+        let isCancelled = false;
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        // const wsUrl = `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
-        const wsUrl = `${protocol}://45.151.155.170:8000/api/alerts/ws`;
+        const wsUrl = `${protocol}://${window.location.host}/session/${token}/ws/api/alerts/ws?token=${encodeURIComponent(token)}`;
 
         const connectSocket = () => {
             let hasAuthenticated = false

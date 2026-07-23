@@ -5,10 +5,28 @@ const TOKEN_KEY = "tellmom_token";
 
 let token: string | null = localStorage.getItem(TOKEN_KEY);
 
+export const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+  if (token) {
+    if (urlStr.startsWith("/")) {
+      const cleanPath = urlStr.replace(/^\/+/, "");
+      urlStr = `/session/${token}/forward/${cleanPath}`;
+    }
+  }
+
+  if (typeof input === "object" && "url" in input && !(input instanceof URL)) {
+    return fetch(new Request(urlStr, input), init);
+  }
+
+  return fetch(urlStr, init);
+};
+
 function createConfiguration(): Configuration {
   return new Configuration({
     basePath: "",
     accessToken: () => token ?? "",
+    fetchApi: customFetch,
   });
 }
 
@@ -45,7 +63,7 @@ export function getApis() {
 }
 
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
-  const response = await fetch(path, {
+  const response = await customFetch(path, {
     ...init,
     headers: {
       ...init?.headers,
