@@ -40,7 +40,8 @@ def load_config() -> Dict[str, dict]:
 class ServerState:
     """Holds all mutable runtime state for the app, replacing module-level globals."""
 
-    def __init__(self) -> None:
+    def __init__(self, backend_url: str) -> None:
+        self.backend_url = backend_url
         self.processes: Dict[str, subprocess.Popen] = {}
         self.proxy_client: Optional[SecureProxyClient] = None
         self.connection_info: Dict[str, Optional[str]] = {
@@ -49,7 +50,7 @@ class ServerState:
             "status": "Disconnected",
         }
 
-    def start_adapter(self, name: str, cfg: dict):
+    def start_adapter(self, name: str, config: dict):
         if name in self.processes and self.processes[name].poll() is None:
             return
 
@@ -59,12 +60,8 @@ class ServerState:
 
         log_file_path = BASE_DIR / f"{name}_output.log"
         log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
-
-        # Overwrite backend_url to point to this server
-        cfg["backend_url"] = "http://127.0.0.1:8000/ingest"
-        cfg["proxy_url"] = ""  # Disable proxy client inside adapter
-
-        proc = adapter.launch(BASE_DIR, cfg, log_file)
+        config["backend_url"] = self.backend_url
+        proc = adapter.launch(config, log_file)
         self.processes[name] = proc
 
     def stop_adapter(self, name: str) -> bool:
@@ -123,7 +120,7 @@ class ServerState:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.server = ServerState()
+    app.state.server = ServerState(app.state.server_url)
 
     config = load_config()
     for name, cfg in config.items():
@@ -211,4 +208,8 @@ async def ingest_message(
 
 
 if __name__ == "__main__":
-    uvicorn.run("adapters.server:app", host="127.0.0.1", port=8000, reload=False)
+    HOST = "127.0.0.1"
+    PORT = 8000
+    URL = f"http://{HOST}:{PORT}"
+    app.state.server_url = URL
+    uvicorn.run("adapters.server:app", host=HOST, port=PORT, reload=False)

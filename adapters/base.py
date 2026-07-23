@@ -1,7 +1,7 @@
 from typing import Dict, Any, List
-from pathlib import Path
 import subprocess
 import abc
+
 
 class BaseAdapter(abc.ABC):
     def __init__(
@@ -17,8 +17,9 @@ class BaseAdapter(abc.ABC):
         self.description = description
 
     @abc.abstractmethod
-    def launch(self, base_dir: Path, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+    def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
         pass
+
 
 class AdapterRegistry:
     def __init__(self):

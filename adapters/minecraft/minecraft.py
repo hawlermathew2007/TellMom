@@ -1,6 +1,7 @@
 """
 Minecraft chat log adapter.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -105,7 +106,9 @@ def parse_chat_message(line: str, offset: int) -> Optional[ChatMessage]:
     )
 
 
-async def send_with_retry(client: httpx.AsyncClient, url: str, payload: dict, max_retries: int = 5) -> None:
+async def send_with_retry(
+    client: httpx.AsyncClient, url: str, payload: dict, max_retries: int = 5
+) -> None:
     delay = 1.0
     for attempt in range(1, max_retries + 1):
         try:
@@ -114,11 +117,25 @@ async def send_with_retry(client: httpx.AsyncClient, url: str, payload: dict, ma
             return
         except httpx.HTTPStatusError as exc:
             if 400 <= exc.response.status_code < 500:
-                log.error("Backend rejected message (status %d): %s", exc.response.status_code, exc.response.text)
+                log.error(
+                    "Backend rejected message (status %d): %s",
+                    exc.response.status_code,
+                    exc.response.text,
+                )
                 return
-            log.warning("Server error sending message (attempt %d/%d): %s", attempt, max_retries, exc)
+            log.warning(
+                "Server error sending message (attempt %d/%d): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
         except httpx.HTTPError as exc:
-            log.warning("Network error sending message (attempt %d/%d): %s", attempt, max_retries, exc)
+            log.warning(
+                "Network error sending message (attempt %d/%d): %s",
+                attempt,
+                max_retries,
+                exc,
+            )
 
         if attempt < max_retries:
             await asyncio.sleep(delay)
@@ -136,7 +153,7 @@ async def run(
 ) -> None:
     store = OffsetStore(state_path)
     tailer = LogTailer(log_path, start_offset=store.read_offset)
-    
+
     log.info("Watching %s (starting at offset %d)", log_path, store.read_offset)
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -160,10 +177,10 @@ async def run(
                     "server_id": server_id,
                     "message": msg.message,
                 }
-                
+
                 await send_with_retry(client, backend_url, payload, max_retries)
                 log.info("Sent <%s> %s", msg.username, msg.message)
-                
+
                 store.last_sent_offset = offset_after
                 store.save()
 
@@ -180,27 +197,33 @@ class MinecraftAdapter(BaseAdapter):
                 "backend_url": "http://localhost:8000/ingest",
                 "server_id": "my-survival-server",
                 "poll_interval": 1.0,
-                "max_retries": 5
+                "max_retries": 5,
             },
-            description="Tails a Minecraft log and forwards chat"
+            description="Tails a Minecraft log and forwards chat",
         )
-        
-    def launch(self, base_dir: Path, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+
+    def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
         args = [
             sys.executable,
             str(Path(__file__).resolve()),
-            "--log", str(config.get("log_path", "latest.log")),
-            "--server-id", str(config.get("server_id", "my-survival-server")),
-            "--poll-interval", str(config.get("poll_interval", 1.0)),
-            "--max-retries", str(config.get("max_retries", 5))
+            "--log",
+            str(config.get("log_path", "latest.log")),
+            "--server-id",
+            str(config.get("server_id", "my-survival-server")),
+            "--poll-interval",
+            str(config.get("poll_interval", 1.0)),
+            "--max-retries",
+            str(config.get("max_retries", 5)),
         ]
-        
+
         backend_url = config.get("backend_url", "http://localhost:8000/ingest")
         args.extend(["--backend-url", backend_url])
-            
+
         return subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
 
+
 plugin = MinecraftAdapter()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -251,6 +274,7 @@ def main() -> None:
             max_retries=args.max_retries,
         )
     )
+
 
 if __name__ == "__main__":
     main()

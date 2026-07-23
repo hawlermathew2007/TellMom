@@ -47,19 +47,26 @@ def _start_server(
     return thread, server
 
 
-def test_full_proxy_roundtrip() -> None:
-    # start proxy server
+def test_full_proxy_roundtrip(servers, postgres) -> None:
     # ensure proxy DB tables exist before server starts
+    from proxy.database.session import reset_db_url as reset_proxy_db_url
+    from backend.database.session import reset_db_url as reset_back_db_url
+
+    reset_proxy_db_url(postgres.get_connection_url())
+    reset_back_db_url(postgres.get_connection_url())
+
     proxy_init_db()
     backend_init_db()
 
     P_HOST, P_PORT = "localhost", 8000
     P_URL = f"http://{P_HOST}:{P_PORT}"
     p_thread, p_server = _start_server("proxy.main:app", host=P_HOST, port=P_PORT)
+    servers.append((p_thread, p_server))
 
     B_HOST, B_PORT = "localhost", 8080
     B_URL = f"http://{B_HOST}:{B_PORT}"
     b_thread, b_server = _start_server("backend.main:app", host=B_HOST, port=B_PORT)
+    servers.append((b_thread, b_server))
 
     _wait_server(P_URL)
     _wait_server(B_URL)
@@ -131,22 +138,16 @@ def test_full_proxy_roundtrip() -> None:
                 headers={"content-type": "application/json"},
             )
             assert resp.status_code == 200
-            
+
             resp_enc_msg = EncryptedMessage.model_validate(resp.json())
             decrypted_bytes = sec.decrypt_message(
                 aes_key=aes_key,
                 nonce_base=nonce_base,
                 encrypted_message=resp_enc_msg,
-                aad=f"{session_id}:{sequence+1}".encode(),
+                aad=f"{session_id}:{sequence + 1}".encode(),
             )
             # The ingest endpoint returns 204 No Content with empty body
             assert decrypted_bytes == b""
 
     # run async scenario
     asyncio.run(scenario())
-
-    # stop uvicorn server
-    p_server.should_exit = True
-    b_server.should_exit = True
-    p_thread.join(timeout=2)
-    b_thread.join(timeout=2)
