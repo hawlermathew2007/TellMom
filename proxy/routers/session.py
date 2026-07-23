@@ -1,5 +1,7 @@
 import base64
-from fastapi import APIRouter, HTTPException, Request
+import uuid
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+
 from fastapi.responses import Response
 
 from shared.schemas.response import ResponseStatus
@@ -14,9 +16,13 @@ from proxy.services.session import (
     associate_session,
     get_server_for_session,
     send_proxy_request,
+    send_proxy_ws_message,
+    register_ws_connection,
+    unregister_ws_connection,
 )
 from shared.schemas.tunnel import TunnelRequest
 from shared.schemas.messages import AuthRequest, DhRequest
+
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -119,3 +125,59 @@ async def forward_request(session_id: str, path: str, request: Request):
     resp_body = base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
 
     return Response(content=resp_body, status_code=status, headers=resp_headers)
+
+
+@router.websocket("/{session_id}/ws/{path:path}")
+async def forward_ws(websocket: WebSocket, session_id: str, path: str):
+    server_id = get_server_for_session(session_id)
+    if server_id is None:
+        await websocket.close(code=1008, reason="Session not found")
+        return
+
+    await websocket.accept()
+    connection_id = str(uuid.uuid4())
+    
+    # Send ws_open
+    try:
+        await send_proxy_ws_message(server_id, {
+            "type": "ws_open",
+            "connection_id": connection_id,
+            "path": f"/{path}",
+            "headers": dict(websocket.headers)
+        })
+    except RuntimeError as exc:
+        await websocket.close(code=1011, reason=str(exc))
+        return
+
+    register_ws_connection(connection_id, websocket)
+
+    try:
+        # The payload typing is forwarded first to determine encoding method
+        while True:
+            msg = await websocket.receive()
+            if "text" in msg:
+                data = msg["text"]
+                opcode = "text"
+            elif "bytes" in msg:
+                data = base64.b64encode(msg["bytes"]).decode('ascii')
+                opcode = "binary"
+            else:
+                continue
+
+            await send_proxy_ws_message(server_id, {
+                "type": "ws_frame",
+                "connection_id": connection_id,
+                "opcode": opcode,
+                "data": data
+            })
+    except WebSocketDisconnect as e:
+        try:
+            await send_proxy_ws_message(server_id, {
+                "type": "ws_close",
+                "connection_id": connection_id,
+                "code": e.code
+            })
+        except Exception:
+            pass
+    finally:
+        unregister_ws_connection(connection_id)

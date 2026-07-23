@@ -45,6 +45,7 @@ class ProxyAgent:
         self.access_token: str | None = None
         self.websocket: websockets.ClientConnection | None = None
         self.session_states: dict[str, SessionState] = {}
+        self.active_ws: dict[str, websockets.ClientConnection] = {}
 
     async def register(self) -> None:
         async with httpx.AsyncClient() as client:
@@ -106,6 +107,19 @@ class ProxyAgent:
 
     async def _handle_proxy_request(self, message: dict[str, Any]) -> None:
         message_type = message.get("type")
+
+        if message_type == "ws_open":
+            asyncio.create_task(self._handle_ws_open(message))
+            return
+
+        if message_type == "ws_frame":
+            asyncio.create_task(self._handle_ws_frame(message))
+            return
+
+        if message_type == "ws_close":
+            asyncio.create_task(self._handle_ws_close(message))
+            return
+
         request_id = message.get("request_id")
         if request_id is None:
             logger.warning("Proxy request missing request_id: %s", message)
@@ -133,6 +147,82 @@ class ProxyAgent:
                 message.get("request_id"),
                 exc,
             )
+
+    async def _handle_ws_open(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        path = message.get("path", "/")
+        if not connection_id:
+            return
+
+        # convert http url to a ws url instead
+        base_ws_url = self.local_url.replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
+        ws_url = f"{base_ws_url}{path}"
+
+        try:
+            ws = await websockets.connect(ws_url)
+            self.active_ws[connection_id] = ws
+            asyncio.create_task(self._ws_listen_loop(connection_id, ws))
+        except Exception as exc:
+            logger.error("Failed to connect ws to local backend: %s", exc)
+            await self._send_response(
+                {"type": "ws_close", "connection_id": connection_id, "code": 1011}
+            )
+
+    async def _ws_listen_loop(
+        self, connection_id: str, ws: websockets.ClientConnection
+    ) -> None:
+        try:
+            async for msg in ws:
+                # Determine and encode based on whether payload is string or byte
+                is_str = isinstance(msg, str)
+                await self._send_response(
+                    {
+                        "type": "ws_frame",
+                        "connection_id": connection_id,
+                        "opcode": "text" if is_str else "binary",
+                        "data": msg
+                        if is_str
+                        else base64.b64encode(msg).decode("ascii"),
+                    }
+                )
+        except Exception as exc:
+            logger.error("WS %s closed: %s", connection_id, exc)
+        finally:
+            self.active_ws.pop(connection_id, None)
+            await self._send_response(
+                {"type": "ws_close", "connection_id": connection_id, "code": 1000}
+            )
+
+    async def _handle_ws_frame(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        ws = self.active_ws.get(connection_id) if connection_id else None
+        if not ws:
+            return
+
+        opcode = message.get("opcode")
+        data = message.get("data", "")
+        try:
+            if opcode == "text":
+                await ws.send(data)
+            elif opcode == "binary":
+                await ws.send(base64.b64decode(data))
+        except Exception as exc:
+            logger.error("Failed to send ws frame: %s", exc)
+
+    async def _handle_ws_close(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        ws = self.active_ws.get(connection_id) if connection_id else None
+        if ws:
+            try:
+                code = message.get("code", 1000)
+                await ws.close(code=code)
+            except Exception:
+                pass
+            finally:
+                if connection_id:
+                    self.active_ws.pop(connection_id, None)
 
     # TODO: move the protocol to a share folder, apply the generic protocol handler for both the proxy server
     # and the potential future clients that might need it
