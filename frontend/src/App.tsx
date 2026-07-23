@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getApis, getToken, clearToken, fetchAlerts, acknowledgeAlertWithExplanation } from "./apis/client";
+import { getApis, getToken, getSessionId, clearToken, fetchAlerts, acknowledgeAlertWithExplanation } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
 import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
 import { useSettings } from "./hooks/useSettings";
@@ -13,12 +13,14 @@ import AlertDetailView from "./features/alerts/AlertDetailView";
 import ChildrenManagement from "./features/children/ChildrenManagement";
 import TestChatRoom from "./features/debug/TestChatRoom";
 import SettingsView from "./components/SettingsView";
+import ConnectPage from "./features/auth/ConnectPage";
 import AuthPage from "./features/auth/AuthPage";
 import ToastNotification, { ToastItem } from "./components/ToastNotification";
 import { LoadingSpinner, ErrorFallback } from "./components/SkeletonLoader";
 
 export default function App() {
     // Session & Authentication
+    const [sessionId, setSessionIdState] = useState<string | null>(getSessionId());
     const [token, setTokenState] = useState<string | null>(getToken());
     const [parent, setParent] = useState<ParentResponse | null>(null);
     const [children, setChildren] = useState<ChildAccountResponse[]>([]);
@@ -101,7 +103,8 @@ export default function App() {
         
         let isCancelled = false;
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const wsUrl = `${protocol}://${window.location.host}/session/${token}/ws/api/alerts/ws?token=${encodeURIComponent(token)}`;
+        const sid = getSessionId() || "";
+        const wsUrl = `${protocol}://${window.location.host}/session/${sid}/ws/api/alerts/ws?token=${encodeURIComponent(token)}`;
 
         const connectSocket = () => {
             let hasAuthenticated = false
@@ -253,6 +256,7 @@ export default function App() {
     const handleLogout = () => {
         clearToken();
         setTokenState(null);
+        setSessionIdState(null);
         setParent(null);
         setChildren([]);
         setAlerts([]);
@@ -341,6 +345,16 @@ export default function App() {
                 return <LoadingSpinner />;
         }
     };
+
+    // Render Connect screen if session id is missing
+    if (!sessionId) {
+        return (
+            <>
+                <ConnectPage onSuccess={(sid) => setSessionIdState(sid)} />
+                <ToastNotification toasts={toasts} onClose={closeToast} />
+            </>
+        );
+    }
 
     // Render Authentication screen if session token is missing
     if (!token) {

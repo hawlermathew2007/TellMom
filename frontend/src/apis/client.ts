@@ -1,17 +1,19 @@
 import { AlertsApi, AuthApi, ChildrenApi, DefaultApi, Configuration, ResponseError } from "./index";
 import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
 
+const SESSION_ID_KEY = "tellmom_session_id";
 const TOKEN_KEY = "tellmom_token";
 
+let sessionId: string | null = localStorage.getItem(SESSION_ID_KEY);
 let token: string | null = localStorage.getItem(TOKEN_KEY);
 
 export const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-  if (token) {
+  if (sessionId) {
     if (urlStr.startsWith("/")) {
       const cleanPath = urlStr.replace(/^\/+/, "");
-      urlStr = `/session/${token}/forward/${cleanPath}`;
+      urlStr = `/session/${sessionId}/forward/${cleanPath}`;
     }
   }
 
@@ -42,6 +44,15 @@ function createApis() {
 
 let apis = createApis();
 
+export function getSessionId(): string | null {
+  return sessionId;
+}
+
+export function setSessionId(value: string): void {
+  sessionId = value;
+  localStorage.setItem(SESSION_ID_KEY, value);
+}
+
 export function getToken(): string | null {
   return token;
 }
@@ -55,6 +66,8 @@ export function setToken(value: string): void {
 export function clearToken(): void {
   token = null;
   localStorage.removeItem(TOKEN_KEY);
+  sessionId = null;
+  localStorage.removeItem(SESSION_ID_KEY);
   apis = createApis();
 }
 

@@ -108,6 +108,7 @@ class ProxyAgent:
     async def _handle_proxy_request(self, message: dict[str, Any]) -> None:
         message_type = message.get("type")
 
+        # TODO: change these with enums like below
         if message_type == "ws_open":
             asyncio.create_task(self._handle_ws_open(message))
             return
@@ -126,7 +127,7 @@ class ProxyAgent:
             return
 
         handlers: dict[str, Any] = {
-            TunnelRequestTypes.ASSOCIATE.value: self._handle_auth_request,
+            TunnelRequestTypes.ASSOCIATE.value: self._handle_associate_request,
             TunnelRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
             TunnelRequestTypes.FORWARD.value: self._handle_forward_request,
         }
@@ -326,7 +327,7 @@ class ProxyAgent:
             )
             await self._send_response(tunnel_resp)
 
-    async def _handle_auth_request(self, message: dict[str, Any]) -> None:
+    async def _handle_associate_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message.get("session_id") or ""
 
