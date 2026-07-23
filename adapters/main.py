@@ -1,163 +1,169 @@
-import yaml
-import subprocess
-from pathlib import Path
+import httpx
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, DataTable, Log
+from textual.widgets import Header, Footer, DataTable, Log, Input, Button, Label, Static
+from textual.containers import Horizontal, Vertical
 from textual.binding import Binding
 
-from adapters.base import AdapterRegistry
-from adapters.minecraft.minecraft import plugin as minecraft_plugin
+API_URL = "http://127.0.0.1:8000/api"
 
-CONFIG_FILE = Path(__file__).resolve().parent / "config.yaml"
-
-registry = AdapterRegistry()
-registry.register(minecraft_plugin)
-
-class TellMomApp(App):
+class TellMomTUI(App):
     CSS = """
-    DataTable {
-        height: 2fr;
+    #main_container {
+        layout: horizontal;
+    }
+    #left_panel {
+        width: 65%;
         border: solid green;
     }
-    Log {
-        height: 1fr;
+    #right_panel {
+        width: 35%;
         border: solid blue;
+        padding: 1;
+    }
+    DataTable {
+        height: 1fr;
+    }
+    Log {
+        height: 10;
+        border-top: solid green;
+    }
+    .input_row {
+        margin-bottom: 1;
+    }
+    Button {
+        margin-right: 1;
     }
     """
     
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("s", "start_adapter", "Start"),
-        Binding("x", "stop_adapter", "Stop"),
+        Binding("s", "start_adapter", "Start Adapter"),
+        Binding("x", "stop_adapter", "Stop Adapter"),
     ]
 
     def __init__(self):
         super().__init__()
-        self.config = self.load_config()
-        self.processes = {}
-
-    def load_config(self):
-        cfg = {}
-
-        # Register default config
-        for adapter in registry.list_adapters():
-            cfg[adapter.name] = adapter.default_config.copy()
-            
-        if CONFIG_FILE.exists():
-            try:
-                with open(CONFIG_FILE, "r") as f:
-                    user_cfg = yaml.safe_load(f)
-                if user_cfg:
-                    for name, default_val in cfg.items():
-                        if name in user_cfg:
-                            default_val.update(user_cfg[name])
-            except Exception:
-                pass
-        return cfg
+        self.client = httpx.AsyncClient(timeout=5.0)
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield DataTable(id="adapters_table")
-        yield Log(id="logs_panel")
+        with Horizontal(id="main_container"):
+            with Vertical(id="left_panel"):
+                yield DataTable(id="adapters_table")
+                yield Log(id="logs_panel")
+            with Vertical(id="right_panel"):
+                yield Label("Connection to Remote Proxy", classes="header")
+                yield Label("Status: Checking...", id="conn_status")
+                yield Input(placeholder="Proxy URL", id="input_proxy_url", classes="input_row")
+                yield Input(placeholder="Server ID", id="input_server_id", classes="input_row")
+                yield Input(placeholder="Password Code", id="input_password", password=True, classes="input_row")
+                with Horizontal():
+                    yield Button("Connect", id="btn_connect", variant="success")
+                    yield Button("Disconnect", id="btn_disconnect", variant="error")
         yield Footer()
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        table.add_columns("Name", "Status", "Description", "Server ID", "Proxy/DH State")
-        self.update_table()
-        self.set_interval(1.0, self.update_table)
+        table.add_columns("Name", "Status", "Description", "Server ID")
+        self.update_data()
+        self.set_interval(2.0, self.update_data)
 
-    def update_table(self) -> None:
-        table = self.query_one(DataTable)
-        
-        # Save cursor position before clear
-        row = table.cursor_coordinate.row
-        
-        table.clear()
-        
-        for adapter in registry.list_adapters():
-            name = adapter.name
-            is_running = name in self.processes and self.processes[name].poll() is None
+    async def update_data(self) -> None:
+        try:
+            # Update adapters
+            resp = await self.client.get(f"{API_URL}/adapters")
+            if resp.status_code == 200:
+                adapters = resp.json()
+                table = self.query_one(DataTable)
+                row = table.cursor_coordinate.row
+                table.clear()
+                for adp in adapters:
+                    status = f"[green]{adp['status']}[/]" if adp["status"] == "RUNNING" else f"[red]{adp['status']}[/]"
+                    table.add_row(adp["name"], status, adp["description"], adp["server_id"])
+                if row < table.row_count:
+                    table.move_cursor(row=row)
             
-            if name in self.processes and self.processes[name].poll() is not None:
-                self.processes.pop(name)
-                is_running = False
+            # Update connection status
+            resp = await self.client.get(f"{API_URL}/connection")
+            if resp.status_code == 200:
+                conn = resp.json()
+                status_label = self.query_one("#conn_status", Label)
+                color = "green" if conn["status"] == "Connected" else "red" if "Error" in conn["status"] else "yellow"
+                status_label.update(f"Status: [{color}]{conn['status']}[/]")
                 
-            status = "[green]RUNNING[/]" if is_running else "[red]STOPPED[/]"
-            
-            cfg = self.config.get(name, {})
-            server_id = cfg.get("server_id", "None")
-            
-            proxy_state = "No Proxy"
-            if cfg.get("proxy_url"):
-                proxy_state = "Associated (Configured)"
-            
-            table.add_row(name, status, adapter.description, server_id, proxy_state)
+        except Exception as e:
+            self.query_one(Log).write_line(f"Error fetching data: {e}")
 
-        # Restore cursor
-        if row < table.row_count:
-            table.move_cursor(row=row)
-
-    def action_start_adapter(self) -> None:
+    async def action_start_adapter(self) -> None:
         table = self.query_one(DataTable)
         log_panel = self.query_one(Log)
         
         if table.row_count == 0:
             return
-            
         try:
             name = table.get_row_at(table.cursor_coordinate.row)[0]
         except Exception:
             return
 
-        if name in self.processes:
-            log_panel.write_line(f"{name} is already running.")
-            return
-
-        adapter = registry.get(name)
-        if not adapter:
-            return
-
-        base_dir = Path(__file__).resolve().parent
-        log_file_path = base_dir / f"{name}_output.log"
-        log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
-        
-        cfg = self.config[name]
         try:
-            proc = adapter.launch(base_dir, cfg, log_file)
-            self.processes[name] = proc
-            log_panel.write_line(f"Started {name} (PID: {proc.pid})")
+            resp = await self.client.post(f"{API_URL}/adapters/{name}/start")
+            log_panel.write_line(f"Start {name}: {resp.status_code}")
+            await self.update_data()
         except Exception as e:
             log_panel.write_line(f"Failed to start {name}: {e}")
-        
-        self.update_table()
 
-    def action_stop_adapter(self) -> None:
+    async def action_stop_adapter(self) -> None:
         table = self.query_one(DataTable)
         log_panel = self.query_one(Log)
         
         if table.row_count == 0:
             return
-            
         try:
             name = table.get_row_at(table.cursor_coordinate.row)[0]
         except Exception:
             return
 
-        if name not in self.processes:
-            log_panel.write_line(f"{name} is not running.")
-            return
-
-        proc = self.processes[name]
-        proc.terminate()
         try:
-            proc.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        self.processes.pop(name, None)
-        log_panel.write_line(f"Stopped {name}.")
-        self.update_table()
+            resp = await self.client.post(f"{API_URL}/adapters/{name}/stop")
+            log_panel.write_line(f"Stop {name}: {resp.status_code}")
+            await self.update_data()
+        except Exception as e:
+            log_panel.write_line(f"Failed to stop {name}: {e}")
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        log_panel = self.query_one(Log)
+        if event.button.id == "btn_connect":
+            proxy_url = self.query_one("#input_proxy_url", Input).value
+            server_id = self.query_one("#input_server_id", Input).value
+            password = self.query_one("#input_password", Input).value
+            
+            if not proxy_url or not server_id or not password:
+                log_panel.write_line("Please fill all connection fields.")
+                return
+                
+            log_panel.write_line("Connecting...")
+            try:
+                resp = await self.client.post(f"{API_URL}/connection", json={
+                    "proxy_url": proxy_url,
+                    "server_id": server_id,
+                    "password_code": password
+                })
+                if resp.status_code == 200:
+                    log_panel.write_line("Connected successfully!")
+                else:
+                    log_panel.write_line(f"Connection failed: {resp.text}")
+                await self.update_data()
+            except Exception as e:
+                log_panel.write_line(f"Connection error: {e}")
+                
+        elif event.button.id == "btn_disconnect":
+            try:
+                await self.client.post(f"{API_URL}/connection/disconnect")
+                log_panel.write_line("Disconnected.")
+                await self.update_data()
+            except Exception as e:
+                log_panel.write_line(f"Disconnect error: {e}")
 
 if __name__ == "__main__":
-    app = TellMomApp()
+    app = TellMomTUI()
     app.run()

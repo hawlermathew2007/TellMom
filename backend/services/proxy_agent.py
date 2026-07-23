@@ -23,7 +23,6 @@ from shared.services.security import (
     int_to_b64,
     encrypt_message,
     decrypt_message,
-    xor_nonce,
 )
 from shared.schemas.messages import (
     AuthResponse,
