@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -47,11 +48,13 @@ class SecureProxyClient:
             "client_id": self.client_id,
         }
         response = await self._client.post(
-            f"{self.proxy_url}/session/auth", json=payload
+            f"{self.proxy_url}/session/associate", json=payload
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != ResponseStatus.SUCCESS.value or not data.get("session_id"):
+        if data.get("status") != ResponseStatus.SUCCESS.value or not data.get(
+            "session_id"
+        ):
             raise RuntimeError(data.get("reason", "Authentication failed"))
         self.session_id = data["session_id"]
 
@@ -59,16 +62,15 @@ class SecureProxyClient:
         self.client_private = generate_dh_private_key()
         client_pub = derive_dh_public_key(self.client_private)
         response = await self._client.post(
-            f"{self.proxy_url}/session/dh",
+            f"{self.proxy_url}/session/key-exchange",
             json={
                 "session_id": self.session_id,
                 "client_dh_pubkey": int_to_b64(client_pub),
             },
         )
+        logging.getLogger(__name__).error(f"Debug statement: {response}")
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != ResponseStatus.SUCCESS.value:
-            raise RuntimeError(data.get("reason", "DH exchange failed"))
 
         server_pub = b64_to_int(data["server_dh_pubkey"])
         shared_secret = derive_shared_secret(self.client_private, server_pub)
@@ -80,7 +82,7 @@ class SecureProxyClient:
         if self.aes_key is None or self.nonce_base is None:
             await self._exchange_dh()
 
-    async def send(self, payload: dict) -> None:
+    async def send(self, payload: dict) -> str:
         await self.ensure_handshake()
         assert self.session_id is not None
         assert self.aes_key is not None and self.nonce_base is not None
@@ -108,13 +110,13 @@ class SecureProxyClient:
         server_nonce = base64.urlsafe_b64decode(
             server_nonce_str + "=" * (-len(server_nonce_str) % 4)
         )
-        decrypt_message(
-            self.aes_key,
-            server_nonce,
-            data.get("ciphertext", ""),
-            data.get("auth_tag", ""),
-            f"{self.session_id}:{server_sequence}".encode("utf-8"),
-        )
+        decrypted = decrypt_message(
+            aes_key=self.aes_key,
+            nonce_base=server_nonce,
+            encrypted_message=data.get("ciphertext", ""),
+            aad=f"{self.session_id}:{server_sequence}".encode("utf-8"),
+        ).decode()
+        return decrypted
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -158,7 +160,6 @@ class IngestClient:
         resp.raise_for_status()
 
     async def send_with_retry(self, payload: dict, max_retries: int = 5) -> None:
-        import asyncio
 
         delay = 1.0
         for attempt in range(1, max_retries + 1):

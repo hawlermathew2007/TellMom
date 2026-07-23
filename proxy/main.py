@@ -38,7 +38,6 @@ async def stream(websocket: WebSocket) -> None:
         return
 
     await register_server(server_id, websocket)
-    # TODO: put the enum else where
     await websocket.send_text(json.dumps({"type": ResponseStatus.SUCCESS.value}))
 
     try:
