@@ -1,6 +1,8 @@
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from backend.core.config import CORS_ORIGINS
 from backend.database.session import init_db
 from backend.services.classifier_stream import classifier_stream
 from backend.routers import alerts, auth, children, message, classifier
@@ -20,6 +22,13 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth.router)
 app.include_router(children.router)
 app.include_router(alerts.router)

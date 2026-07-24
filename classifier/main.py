@@ -125,12 +125,11 @@ class WSClientThread(threading.Thread):
     ):
         super().__init__(name="WSClientThread", daemon=True)
         self.url = url
-        self.header = [f"Authorization: Bearer {token}"]
+        self.token = token
         self.inference_queue = inference_queue
         self._stop_event = threading.Event()
         self._ws = websocket.WebSocketApp(
             self.url,
-            header=self.header,
             on_open=self._on_open,
             on_message=self._on_message,
             on_error=self._on_error,
@@ -151,6 +150,7 @@ class WSClientThread(threading.Thread):
 
     def _on_open(self, _):
         logger.info("[ws] Connection established.")
+        self.send_json({"type": "auth", "token": self.token})
 
     def _on_message(self, _, raw: str):
         try:

@@ -1,7 +1,9 @@
 import os
+import pathlib
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE = pathlib.Path(__file__).parent.parent.resolve()
+load_dotenv(BASE / ".env")
 
 CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD")
 assert CLASSIFIER_PASSWORD is not None

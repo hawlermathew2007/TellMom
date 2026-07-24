@@ -1,6 +1,9 @@
 import os
+import pathlib
 from dotenv import load_dotenv
 
+BASE = pathlib.Path(__file__).parent.parent.resolve()
+load_dotenv(BASE / ".env")
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
