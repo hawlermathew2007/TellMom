@@ -10,21 +10,86 @@ let token: string | null = localStorage.getItem(TOKEN_KEY);
 
 export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, forward: boolean = true): Promise<Response> => {
   let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  let appliedEncryption = false;
+  let sessionIdUsed = sessionId;
 
   if (sessionId && forward) {
     if (urlStr.startsWith("/")) {
       const cleanPath = urlStr.replace(/^\/+/, "");
       urlStr = PROXY_URL + `/session/${sessionId}/forward/${cleanPath}`;
+
+      const method = init?.method?.toUpperCase() || "GET";
+      const hasBody = init?.body && typeof init.body === "string";
+
+      if (hasBody && ["POST", "PUT", "PATCH"].includes(method)) {
+        const aesKeyB64 = localStorage.getItem("tellmom_aes_key");
+        const nonceBaseB64 = localStorage.getItem("tellmom_nonce_base");
+        let seqStr = localStorage.getItem("tellmom_sequence");
+        let seq = seqStr ? parseInt(seqStr, 10) : 1;
+
+        if (aesKeyB64 && nonceBaseB64) {
+          // Dynamic import to avoid circular dependency issues at the top level
+          const { encryptMessage, base64ToBytes } = await import("../lib/security");
+          const aesKey = base64ToBytes(aesKeyB64);
+          const nonceBase = base64ToBytes(nonceBaseB64);
+
+          const encrypted = await encryptMessage(seq, aesKey, nonceBase, init.body as string, sessionId);
+
+          init = {
+            ...init,
+            body: JSON.stringify(encrypted),
+            headers: {
+              ...init.headers,
+              "Content-Type": "application/json",
+            },
+          };
+
+          appliedEncryption = true;
+          localStorage.setItem("tellmom_sequence", (seq + 1).toString());
+        }
+      }
     }
   } else {
       urlStr = PROXY_URL + urlStr;
   }
 
+  let response: Response;
   if (typeof input === "object" && "url" in input && !(input instanceof URL)) {
-    return fetch(new Request(urlStr, input), init);
+    response = await fetch(new Request(urlStr, input), init);
+  } else {
+    response = await fetch(urlStr, init);
   }
 
-  return fetch(urlStr, init);
+  if (appliedEncryption && response.ok && sessionIdUsed) {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const cloned = response.clone();
+      try {
+        const bodyJson = await cloned.json();
+        if (bodyJson && typeof bodyJson.ciphertext === "string") {
+          const aesKeyB64 = localStorage.getItem("tellmom_aes_key");
+          const nonceBaseB64 = localStorage.getItem("tellmom_nonce_base");
+          if (aesKeyB64 && nonceBaseB64) {
+            const { decryptMessage, base64ToBytes } = await import("../lib/security");
+            const aesKey = base64ToBytes(aesKeyB64);
+            const nonceBase = base64ToBytes(nonceBaseB64);
+            const aad = new TextEncoder().encode(`${sessionIdUsed}:${bodyJson.sequence}`);
+            
+            const decryptedString = await decryptMessage(aesKey, nonceBase, bodyJson, aad);
+            return new Response(decryptedString, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers
+            });
+          }
+        }
+      } catch (e) {
+        // Fallback to original response
+      }
+    }
+  }
+
+  return response;
 };
 
 function createConfiguration(): Configuration {

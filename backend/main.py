@@ -1,8 +1,6 @@
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from fastapi.middleware.cors import CORSMiddleware
-from backend.core.config import CORS_ORIGINS
 from backend.database.session import init_db
 from backend.services.classifier_stream import classifier_stream
 from backend.routers import alerts, auth, children, message, classifier, management
@@ -42,4 +40,4 @@ app.include_router(management.router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

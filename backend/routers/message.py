@@ -11,7 +11,6 @@ from backend.services.ingest import process_ingest
 router = APIRouter(prefix="/message", tags=["message"])
 
 
-# TODO: make sure the ingest processing can decrypt the message and such
 @router.post("/ingest", status_code=204)
 async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> None:
     try:

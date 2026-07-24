@@ -94,9 +94,9 @@ async function hkdfExpand(prk: CryptoKey, info: Uint8Array, length: number): Pro
         block.set(previous, 0);
         block.set(info, previous.length);
         block[previous.length + info.length] = counter;
-        
+
         previous = await hmacSha256(prk, block);
-        
+
         const newResult = new Uint8Array(result.length + previous.length);
         newResult.set(result, 0);
         newResult.set(previous, result.length);
@@ -126,4 +126,86 @@ export function base64ToBytes(b64: string): Uint8Array {
         bytes[i] = binary.charCodeAt(i);
     }
     return bytes;
+}
+
+export interface EncryptedMessage {
+    sequence: number;
+    nonce: string;
+    ciphertext: string;
+    auth_tag: string;
+}
+
+function xorNonce(nonceBase: Uint8Array, sequence: number): Uint8Array {
+    const nonce = new Uint8Array(nonceBase.length);
+    let tempSeq = BigInt(sequence);
+    for (let i = nonceBase.length - 1; i >= 0; i--) {
+        nonce[i] = nonceBase[i] ^ Number(tempSeq & 0xffn);
+        tempSeq >>= 8n;
+    }
+    return nonce;
+}
+
+export async function encryptMessage(
+    sequence: number,
+    aesKey: Uint8Array,
+    nonceBase: Uint8Array,
+    plaintext: string,
+    sessionId: string
+): Promise<EncryptedMessage> {
+    const nonce = xorNonce(nonceBase, sequence);
+    const aad = new TextEncoder().encode(`${sessionId}:${sequence}`);
+    const key = await window.crypto.subtle.importKey('raw', aesKey, { name: 'AES-GCM' }, false, ['encrypt']);
+
+    const encrypted = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: nonce, additionalData: aad },
+        key,
+        new TextEncoder().encode(plaintext)
+    );
+
+    const encryptedBytes = new Uint8Array(encrypted);
+    const body = encryptedBytes.slice(0, -16);
+    const tag = encryptedBytes.slice(-16);
+
+    const btoaSafe = (bytes: Uint8Array) => {
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    };
+
+    return {
+        sequence,
+        nonce: btoaSafe(nonce),
+        ciphertext: btoaSafe(body),
+        auth_tag: btoaSafe(tag)
+    };
+}
+
+export async function decryptMessage(
+    aesKey: Uint8Array,
+    nonceBase: Uint8Array,
+    encryptedMessage: EncryptedMessage,
+    aad: Uint8Array
+): Promise<string> {
+    const nonce = xorNonce(nonceBase, encryptedMessage.sequence);
+    const key = await window.crypto.subtle.importKey('raw', aesKey, { name: 'AES-GCM' }, false, ['decrypt']);
+
+    let ciphertextB64 = encryptedMessage.ciphertext.replace(/-/g, '+').replace(/_/g, '/');
+    while (ciphertextB64.length % 4 !== 0) ciphertextB64 += '=';
+    let tagB64 = encryptedMessage.auth_tag.replace(/-/g, '+').replace(/_/g, '/');
+    while (tagB64.length % 4 !== 0) tagB64 += '=';
+
+    const ciphertext = Uint8Array.from(atob(ciphertextB64), c => c.charCodeAt(0));
+    const tag = Uint8Array.from(atob(tagB64), c => c.charCodeAt(0));
+
+    const data = new Uint8Array(ciphertext.length + tag.length);
+    data.set(ciphertext, 0);
+    data.set(tag, ciphertext.length);
+
+    const decrypted = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: nonce, additionalData: aad },
+        key,
+        data
+    );
+
+    return new TextDecoder().decode(decrypted);
 }

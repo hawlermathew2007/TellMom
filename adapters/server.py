@@ -114,6 +114,7 @@ class ServerState:
                 await self.proxy_client.send(payload)
             except Exception as e:
                 print(f"Failed to forward message: {e}")
+                print(f"Error message payload: {payload}")
         else:
             print("Received payload but proxy not connected:", payload)
 

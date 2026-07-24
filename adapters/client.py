@@ -97,8 +97,8 @@ class SecureProxyClient:
         )
 
         response = await self._client.post(
-            f"{self.proxy_url}/session/{self.session_id}/message",
-            json=encrypted_message,
+            f"{self.proxy_url}/session/{self.session_id}/forward/message/ingest",
+            json=encrypted_message.model_dump(),
         )
         response.raise_for_status()
         data = response.json()

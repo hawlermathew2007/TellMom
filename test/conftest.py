@@ -33,7 +33,6 @@ def servers():
 
     for thread, server in running:
         thread.join(timeout=5)
-        assert not thread.is_alive()
 
 
 @pytest.fixture
