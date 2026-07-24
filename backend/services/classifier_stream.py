@@ -33,7 +33,6 @@ class ClassifierStreamManager:
             raise ConnectionError("Classifier not connected on /stream")
 
     async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
         self._websocket = websocket
         logger.info("Classifier connected on /learner_stream")
 

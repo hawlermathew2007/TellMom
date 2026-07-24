@@ -21,6 +21,8 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 JWT_SECRET = os.getenv("JWT_SECRET")
 assert JWT_SECRET is not None
 
+PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 60 * 7  # 7 days
 

@@ -9,7 +9,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("POSTGRES_URL")
 assert DATABASE_URL is not None
 
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS265")
+JWT_ALGORITHM = "HS256"
 assert JWT_ALGORITHM is not None
 
 JWT_SECRET = os.getenv("JWT_SECRET")

@@ -64,7 +64,7 @@ class ProxyAgent:
     async def login(self) -> None:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.proxy_url}/login",
+                f"{self.proxy_url}/auth/login",
                 json={"username": self.username, "password": self.password},
                 timeout=15.0,
             )
@@ -410,6 +410,10 @@ class ProxyState:
 
     def __init__(self) -> None:
         self.password_code = self._create_password_code()
+        self.proxy_url = ""
+        self.username = ""
+        self.password = ""
+        self.local_url = "http://127.0.0.1:8080"
 
     @classmethod
     def current(cls) -> ProxyState:
@@ -434,12 +438,22 @@ class ProxyState:
     @classmethod
     def serialize(cls) -> dict[str, Any]:
         instance = cls.current()
-        return {"password_code": instance.password_code}
+        return {
+            "password_code": instance.password_code,
+            "proxy_url": getattr(instance, "proxy_url", ""),
+            "username": getattr(instance, "username", ""),
+            "password": getattr(instance, "password", ""),
+            "local_url": getattr(instance, "local_url", "http://127.0.0.1:8000"),
+        }
 
     @classmethod
     def deserialize(cls, data: dict[str, Any]) -> None:
         instance = cls.current()
         instance.password_code = data.get("password_code", instance.password_code)
+        instance.proxy_url = data.get("proxy_url", "")
+        instance.username = data.get("username", "")
+        instance.password = data.get("password", "")
+        instance.local_url = data.get("local_url", "http://127.0.0.1:8000")
 
 
 def load_state() -> None:
