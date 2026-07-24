@@ -32,13 +32,6 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 app.include_router(auth.router)
 app.include_router(children.router)
 app.include_router(alerts.router)

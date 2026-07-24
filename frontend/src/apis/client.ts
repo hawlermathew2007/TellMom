@@ -1,20 +1,23 @@
 import { AlertsApi, AuthApi, ChildrenApi, DefaultApi, Configuration, ResponseError } from "./index";
 import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
 
+const PROXY_URL = 'http://localhost:8080';
 const SESSION_ID_KEY = "tellmom_session_id";
 const TOKEN_KEY = "tellmom_token";
 
 let sessionId: string | null = localStorage.getItem(SESSION_ID_KEY);
 let token: string | null = localStorage.getItem(TOKEN_KEY);
 
-export const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, forward: boolean = true): Promise<Response> => {
   let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-  if (sessionId) {
+  if (sessionId && forward) {
     if (urlStr.startsWith("/")) {
       const cleanPath = urlStr.replace(/^\/+/, "");
-      urlStr = `/session/${sessionId}/forward/${cleanPath}`;
+      urlStr = PROXY_URL + `/session/${sessionId}/forward/${cleanPath}`;
     }
+  } else {
+      urlStr = PROXY_URL + urlStr;
   }
 
   if (typeof input === "object" && "url" in input && !(input instanceof URL)) {

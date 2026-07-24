@@ -1,8 +1,10 @@
-from contextlib import asynccontextmanager
 import logging
 import json
+from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
+from proxy.core.config import CORS_ORIGINS
 from proxy.database.session import init_db
 from shared.schemas.response import ResponseStatus
 from proxy.core.jwt import decode_stream_token
@@ -59,6 +61,13 @@ async def stream(websocket: WebSocket) -> None:
 
 
 app = FastAPI(title="TellMom Proxy Server", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth.router)
 app.include_router(session.router)
 app.include_router(router)

@@ -67,7 +67,7 @@ export default function App() {
 
     // Fetch Dashboard core data from API
     const loadDashboardData = useCallback(async () => {
-        if (!token) return;
+        if (!token || !sessionId) return;
         setIsLoading(true);
         setError("");
 
@@ -92,10 +92,10 @@ export default function App() {
 
     // Load profile/data on initial sign-in
     useEffect(() => {
-        if (token) {
+        if (token && sessionId) {
             loadDashboardData();
         }
-    }, [token, loadDashboardData]);
+    }, [token, sessionId, loadDashboardData]);
 
     // Handle WebSocket Connection
     useEffect(() => {
@@ -213,7 +213,7 @@ export default function App() {
 
     // Fallback Polling Interval if enabled
     useEffect(() => {
-        if (!token || settings.autoRefreshInterval <= 0) return;
+        if (!token || !sessionId || settings.autoRefreshInterval <= 0) return;
 
         const interval = setInterval(async () => {
             try {

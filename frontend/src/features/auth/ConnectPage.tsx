@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Server, Key, Loader2, ArrowRight } from "lucide-react";
-import { setSessionId } from "../../apis/client";
+import { customFetch, setSessionId } from "../../apis/client";
 import { 
     generateDhPrivateKey, 
     deriveDhPublicKey, 
@@ -31,7 +31,7 @@ export default function ConnectPage({ onSuccess }: ConnectPageProps) {
       const clientId = "web-client-" + Math.random().toString(36).substring(2, 9);
       
       setStep("connect");
-      const assocRes = await fetch("/session/associate", {
+      const assocRes = await customFetch("/session/associate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -39,7 +39,7 @@ export default function ConnectPage({ onSuccess }: ConnectPageProps) {
           password_code: passwordCode,
           client_id: clientId,
         }),
-      });
+      }, false);
 
       if (!assocRes.ok) {
         let errStr = "Failed to associate with server";
@@ -51,7 +51,7 @@ export default function ConnectPage({ onSuccess }: ConnectPageProps) {
       }
 
       const assocData = await assocRes.json();
-      if (assocData.status !== "success") {
+      if (assocData.status !== "SUCCESS") {
         throw new Error(assocData.reason || "Association failed");
       }
       
@@ -63,14 +63,14 @@ export default function ConnectPage({ onSuccess }: ConnectPageProps) {
       const pubKey = deriveDhPublicKey(privKey);
       const pubKeyB64 = intToB64Url(pubKey);
 
-      const dhRes = await fetch("/session/key-exchange", {
+      const dhRes = await customFetch("/session/key-exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sid,
           client_dh_pubkey: pubKeyB64,
         }),
-      });
+      }, false);
 
       if (!dhRes.ok) {
         let errStr = "Failed to negotiate keys";

@@ -16,3 +16,5 @@ JWT_SECRET = os.getenv("JWT_SECRET")
 assert JWT_SECRET is not None
 
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", 24))
+
+CORS_ORIGINS = ["http://localhost:5173"]

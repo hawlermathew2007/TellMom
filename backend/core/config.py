@@ -26,8 +26,6 @@ PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 60 * 7  # 7 days
 
-CORS_ORIGINS = ["http://localhost:5173"]
-
 CLASSIFIER_MIN_MESSAGES = 7
 
 MESSAGE_CACHE_TTL = 60 * 60  # 1 hour
