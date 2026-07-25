@@ -102,9 +102,13 @@ def test_full_proxy_roundtrip(servers, postgres) -> None:
                 platform=ChatPlatform.DISCORD,
                 user_id="user-1",
                 server_id="server-1",
-                message="hello tunnel",
+                message="hello tunnel adapter",
             )
-            resp = await client.post(A_URL + "/ingest", json=payload.model_dump())
+            resp = await client.post(
+                A_URL + "/ingest",
+                content=payload.model_dump_json(),
+                headers={"content-type": "application/json"},
+            )
             assert resp.status_code == 200
 
     # run async scenario

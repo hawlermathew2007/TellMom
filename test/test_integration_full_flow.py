@@ -121,7 +121,7 @@ def test_full_proxy_roundtrip(servers, postgres) -> None:
                 platform=ChatPlatform.DISCORD,
                 user_id="user-1",
                 server_id="server-1",
-                message="hello tunnel",
+                message="hello tunnel full flow",
             )
 
             encrypted_body = sec.encrypt_message(

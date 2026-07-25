@@ -6,12 +6,13 @@ import uuid
 from typing import Any
 from pydantic import BaseModel
 from fastapi import WebSocket
+from cachetools import TTLCache
+
 
 logger = logging.getLogger(__name__)
 
 server_map: dict[str, WebSocket] = {}
-# TODO: turn this into TTL dict instead
-session_map: dict[str, str] = {}
+session_map = TTLCache(maxsize=1_000_000, ttl=60 * 60 * 3)  # Last for 3 hours
 pending_requests: dict[str, asyncio.Future[dict[str, Any]]] = {}
 pending_lock = asyncio.Lock()
 
@@ -152,7 +153,7 @@ async def _forward_ws_frame(ws, message: dict) -> None:
         return
 
     if opcode == "binary":
-        await ws.send_bytes(base64.b64decode(data))
+        await ws.send_bytes(base64.urlsafe_b64decode(data))
         return
 
 

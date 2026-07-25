@@ -46,6 +46,7 @@ class ProxyAgent:
         self.websocket: websockets.ClientConnection | None = None
         self.session_states: dict[str, SessionState] = {}
         self.active_ws: dict[str, websockets.ClientConnection] = {}
+        self.status = "disconnected"
 
     async def register(self) -> None:
         async with httpx.AsyncClient() as client:
@@ -79,21 +80,27 @@ class ProxyAgent:
         if not self.access_token or not self.server_id:
             raise RuntimeError("Proxy agent is not registered or logged in")
 
+        self.status = "connecting"
         ws_url = (
             self.proxy_url.replace("http://", "ws://").replace("https://", "wss://")
             + "/stream"
         )
-        self.websocket = await websockets.connect(ws_url)
-        await self.websocket.send(
-            json.dumps({"type": "auth", "token": self.access_token})
-        )
-        raw = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
-        message = json.loads(raw)
-        if message.get("type") != ResponseStatus.SUCCESS.value:
-            raise RuntimeError("Proxy did not accept websocket authentication")
+        try:
+            self.websocket = await websockets.connect(ws_url)
+            await self.websocket.send(
+                json.dumps({"type": "auth", "token": self.access_token})
+            )
+            raw = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+            message = json.loads(raw)
+            if message.get("type") != ResponseStatus.SUCCESS.value:
+                raise RuntimeError("Proxy did not accept websocket authentication")
 
-        logger.info("Connected websocket to proxy for server %s", self.server_id)
-        asyncio.create_task(self._listen_loop())
+            self.status = "connected"
+            logger.info("Connected websocket to proxy for server %s", self.server_id)
+            asyncio.create_task(self._listen_loop())
+        except Exception:
+            self.status = "disconnected"
+            raise
 
     async def _listen_loop(self) -> None:
         assert self.websocket is not None
@@ -104,6 +111,7 @@ class ProxyAgent:
             logger.error("Proxy websocket listener stopped: %s", exc)
         finally:
             self.websocket = None
+            self.status = "disconnected"
 
     async def _handle_proxy_request(self, message: dict[str, Any]) -> None:
         message_type = message.get("type")
@@ -185,7 +193,7 @@ class ProxyAgent:
                         "opcode": "text" if is_str else "binary",
                         "data": msg
                         if is_str
-                        else base64.b64encode(msg).decode("ascii"),
+                        else base64.urlsafe_b64encode(msg).decode("ascii"),
                     }
                 )
         except Exception as exc:
@@ -208,7 +216,7 @@ class ProxyAgent:
             if opcode == "text":
                 await ws.send(data)
             elif opcode == "binary":
-                await ws.send(base64.b64decode(data))
+                await ws.send(base64.urlsafe_b64decode(data))
         except Exception as exc:
             logger.error("Failed to send ws frame: %s", exc)
 
@@ -238,48 +246,50 @@ class ProxyAgent:
         body_b64 = message.get("body", "")
 
         state = self.session_states.get(session_id) if session_id else None
-        body_bytes = base64.b64decode(body_b64) if body_b64 else b""
+        assert state is not None
+        body_bytes = base64.urlsafe_b64decode(body_b64) if body_b64 else b""
 
         body = body_bytes.decode()
-        msg = EncryptedMessage.model_validate_json(body)
+        if method in ["POST", "PUT", "PATCH"]:
+            msg = EncryptedMessage.model_validate_json(body)
 
-        if state is None:
-            tunnel_resp = TunnelResponse(
-                request_id=request_id,
-                status=400,
-                body="Provided sequence number does not match with expected value!",
-            )
-            await self._send_response(tunnel_resp)
-            return
+            if state is None:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body="Provided sequence number does not match with expected value!",
+                )
+                await self._send_response(tunnel_resp)
+                return
 
-        if state.sequence != msg.sequence:
-            tunnel_resp = TunnelResponse(
-                request_id=request_id,
-                status=400,
-                body=f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!",
-            )
-            await self._send_response(tunnel_resp)
-            return
+            if state.sequence != msg.sequence:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body=f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!",
+                )
+                await self._send_response(tunnel_resp)
+                return
 
-        if state.aes_key is None or state.nonce_base is None:
-            tunnel_resp = TunnelResponse(
-                request_id=request_id,
-                status=400,
-                body="User hasn't intitialized dh key exchange yet!",
-            )
-            await self._send_response(tunnel_resp)
-            return
+            if state.aes_key is None or state.nonce_base is None:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body="User hasn't intitialized dh key exchange yet!",
+                )
+                await self._send_response(tunnel_resp)
+                return
 
-        try:
-            aad = f"{session_id}:{state.sequence}".encode()
-            body_bytes = decrypt_message(
-                aes_key=state.aes_key,
-                nonce_base=state.nonce_base,
-                encrypted_message=msg,
-                aad=aad,
-            )
-        except Exception as e:
-            logger.error("Failed to decrypt forward request: %s", e)
+            try:
+                aad = f"{session_id}:{state.sequence}".encode()
+                body_bytes = decrypt_message(
+                    aes_key=state.aes_key,
+                    nonce_base=state.nonce_base,
+                    encrypted_message=msg,
+                    aad=aad,
+                )
+            except Exception as e:
+                logger.error("Failed to decrypt forward request: %s", e)
 
         # Build the full path with query
         url = f"{self.local_url}{path}"
@@ -308,8 +318,7 @@ class ProxyAgent:
                     session_id=session_id,
                 )
                 resp_body_bytes = ciphertext.model_dump_json().encode()
-                resp_body_b64 = base64.b64encode(resp_body_bytes).decode("ascii")
-                resp_status = 200
+                resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode("ascii")
 
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,

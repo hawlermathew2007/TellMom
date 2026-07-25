@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getApis, getToken, getSessionId, clearToken, fetchAlerts, acknowledgeAlertWithExplanation } from "./apis/client";
+import { getApis, getToken, getSessionId, clearToken } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
-import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
+import { AlertWithExplanation, parseAlert, parseAlerts } from "./lib/parseAlert";
 import { useSettings } from "./hooks/useSettings";
 import { playAlertSound } from "./lib/sound";
 
@@ -76,7 +76,7 @@ export default function App() {
             const [me, kids, alertLogs] = await Promise.all([
                 apis.auth.getMeAuthMeGet(),
                 apis.children.listChildrenChildrenGet(),
-                fetchAlerts(),
+                apis.alerts.listAlertsAlertsGet().then(parseAlerts)
             ]);
 
             setParent(me);
@@ -90,6 +90,40 @@ export default function App() {
         }
     }, [token]);
 
+    // Constantly check profile to see if logged out
+    useEffect(() => {
+        if (!token || !sessionId) return;
+        const fetchMe = async () => {
+            try {
+                const apis = getApis();
+                const resp = await apis.auth.getMeAuthMeGet();
+                console.log(resp);
+            } catch (e: any) {
+                console.log(e);
+                const status = e.status ?? e.response?.status;
+                if ([401, 404, 503].includes(status)) {
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith("tellmom_")) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+
+                    clearToken();
+                    setTokenState(null);
+                    setSessionIdState(null);
+                    setParent(null);
+                    setChildren([]);
+                    setAlerts([]);
+                    setActiveView("dashboard");
+                }
+            }
+        };
+
+        fetchMe();
+        const interval = setInterval(fetchMe, 5000);
+        return () => clearInterval(interval);
+    }, [token, sessionId]);
+
     // Load profile/data on initial sign-in
     useEffect(() => {
         if (token && sessionId) {
@@ -100,11 +134,14 @@ export default function App() {
     // Handle WebSocket Connection
     useEffect(() => {
         if (!token) return;
-        
+
         let isCancelled = false;
-        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+
         const sid = getSessionId() || "";
-        const wsUrl = `${protocol}://${window.location.host}/session/${sid}/ws/api/alerts/ws?token=${encodeURIComponent(token)}`;
+        const proxyURL = new URL(import.meta.env.VITE_API_URL);
+        proxyURL.protocol = proxyURL.protocol === "https:" ? "wss" : "ws";
+        proxyURL.pathname = `/session/${sid}/ws/alerts/ws`;
+        const wsUrl = proxyURL.toString();
 
         const connectSocket = () => {
             let hasAuthenticated = false
@@ -115,32 +152,20 @@ export default function App() {
                 ws.send(JSON.stringify({ type: "auth", token }));
             }
 
-            // First message will be used as "auth tag"
-            ws.onmessage = (event) => {
-                let data: any;
-                try {
-                    data = JSON.parse(event.data);
-                } catch {
-                    console.error("Failed to parse message", event.data);
-                    return;
-                }
-
-                if (!hasAuthenticated) {
-                    if (data.type === "auth_ok") {
-                        hasAuthenticated = true;
-                        console.log("WebSocket stream authenticated");
-                    } else {
-                        console.error("Expected auth_ok, got:", data);
-                        ws.close();
-                    }
-                    return;
-                }
-            }
-
             ws.onmessage = (event) => {
                 if (isCancelled) return;
                 try {
                     const raw = JSON.parse(event.data);
+                    if (!hasAuthenticated) {
+                        if (raw.type === "auth_ok") {
+                            hasAuthenticated = true;
+                            console.log("WebSocket stream authenticated");
+                        } else {
+                            console.error("Expected auth_ok, got:", raw);
+                            ws.close();
+                        }
+                        return;
+                    }
 
                     // Check if payload is an alert notification
                     if (raw.type === "alert" || raw.id !== undefined) {
@@ -211,22 +236,6 @@ export default function App() {
         };
     }, [token, children, settings.soundEnabled, settings.soundVolume, settings.desktopNotifications, addToast]);
 
-    // Fallback Polling Interval if enabled
-    useEffect(() => {
-        if (!token || !sessionId || settings.autoRefreshInterval <= 0) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const freshAlerts = await fetchAlerts();
-                setAlerts(freshAlerts);
-            } catch (err) {
-                console.warn("Polling alerts failed:", err);
-            }
-        }, settings.autoRefreshInterval * 1000);
-
-        return () => clearInterval(interval);
-    }, [token, settings.autoRefreshInterval]);
-
     // Navigate actions
     const handleNavigateToAlert = (alertId: number) => {
         setActiveView(`alert-${alertId}`);
@@ -235,7 +244,8 @@ export default function App() {
     // Mark an alert as acknowledged
     const handleAcknowledgeAlert = async (alertId: number) => {
         try {
-            const updated = await acknowledgeAlertWithExplanation(alertId);
+            const apis = getApis();
+            const updated = await apis.alerts.acknowledgeAlertAlertsAlertIdAcknowledgePatch({ alertId }).then(parseAlert);
             const parsedUpdated = {
                 ...updated,
                 detectedStages: alerts.find(a => a.id === alertId)?.detectedStages ?? []

@@ -30,7 +30,7 @@ import {
     IncrementalAnalysisResponseToJSON,
 } from '../models/IncrementalAnalysisResponse';
 
-export interface AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest {
+export interface AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest {
     alertId: number;
 }
 
@@ -44,13 +44,13 @@ export interface GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest {
 export class AlertsApi extends runtime.BaseAPI {
 
     /**
-     * Creates request options for acknowledgeAlertAlertsAlertIdAcknowledgePost without sending the request
+     * Creates request options for acknowledgeAlertAlertsAlertIdAcknowledgePatch without sending the request
      */
-    async acknowledgeAlertAlertsAlertIdAcknowledgePostRequestOpts(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest): Promise<runtime.RequestOpts> {
+    async acknowledgeAlertAlertsAlertIdAcknowledgePatchRequestOpts(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['alertId'] == null) {
             throw new runtime.RequiredError(
                 'alertId',
-                'Required parameter "alertId" was null or undefined when calling acknowledgeAlertAlertsAlertIdAcknowledgePost().'
+                'Required parameter "alertId" was null or undefined when calling acknowledgeAlertAlertsAlertIdAcknowledgePatch().'
             );
         }
 
@@ -72,7 +72,7 @@ export class AlertsApi extends runtime.BaseAPI {
 
         return {
             path: urlPath,
-            method: 'POST',
+            method: 'PATCH',
             headers: headerParameters,
             query: queryParameters,
         };
@@ -81,8 +81,8 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * Acknowledge Alert
      */
-    async acknowledgeAlertAlertsAlertIdAcknowledgePostRaw(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AlertResponse>> {
-        const requestOptions = await this.acknowledgeAlertAlertsAlertIdAcknowledgePostRequestOpts(requestParameters);
+    async acknowledgeAlertAlertsAlertIdAcknowledgePatchRaw(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AlertResponse>> {
+        const requestOptions = await this.acknowledgeAlertAlertsAlertIdAcknowledgePatchRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => AlertResponseFromJSON(jsonValue));
@@ -91,8 +91,8 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * Acknowledge Alert
      */
-    async acknowledgeAlertAlertsAlertIdAcknowledgePost(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AlertResponse> {
-        const response = await this.acknowledgeAlertAlertsAlertIdAcknowledgePostRaw(requestParameters, initOverrides);
+    async acknowledgeAlertAlertsAlertIdAcknowledgePatch(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AlertResponse> {
+        const response = await this.acknowledgeAlertAlertsAlertIdAcknowledgePatchRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

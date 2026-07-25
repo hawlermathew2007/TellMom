@@ -6,6 +6,7 @@ from backend.core import config
 ALGORITHM = config.JWT_ALGORITHM
 
 
+# TODO: this way of doing it is kind of dumb, now theres a mismatch wit proxy server stream
 def create_stream_token() -> str:
     now = datetime.now(timezone.utc)
     payload = {
@@ -16,7 +17,7 @@ def create_stream_token() -> str:
     return jwt.encode(payload, config.JWT_SECRET, algorithm=ALGORITHM)
 
 
-def decode_stream_token(token: str) -> dict:
+def decode_stream_token(token: str, scope: bool = True) -> dict:
     try:
         payload = jwt.decode(
             token, config.JWT_SECRET, algorithms=[ALGORITHM]
@@ -26,6 +27,7 @@ def decode_stream_token(token: str) -> dict:
     except jwt.InvalidTokenError as exc:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
 
-    if payload.get("scope") != "classifier:stream":
+    if scope and payload.get("scope") != "classifier:stream":
         raise HTTPException(status_code=401, detail="Invalid token scope")
+
     return payload

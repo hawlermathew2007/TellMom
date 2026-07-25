@@ -200,11 +200,11 @@ class BackendTUI(App):
                 id="input-local-url",
             )
         with Horizontal(classes="btn-row"):
-            yield Button("💾 Save & Apply", id="btn-set-config", variant="primary")
+            yield Button("Save & Apply", id="btn-set-config", variant="primary")
 
     @staticmethod
     def _status_widgets() -> ComposeResult:
-        yield Label("📊 Status", classes="panel-title")
+        yield Label("Status", classes="panel-title")
 
         with Container(classes="status-card"):
             yield Static("Connection", classes="status-card-label")
@@ -219,7 +219,7 @@ class BackendTUI(App):
             with Horizontal(classes="status-value-row"):
                 yield Static("—", id="serverid-display", classes="status-value")
                 yield Button(
-                    "📋", id="btn-copy-serverid", classes="copy-btn", disabled=True
+                    "C", id="btn-copy-serverid", classes="copy-btn", disabled=True
                 )
 
         with Container(classes="status-card"):
@@ -227,22 +227,20 @@ class BackendTUI(App):
             with Horizontal(classes="status-value-row"):
                 yield Static("—", id="passcode-display", classes="status-value")
                 yield Button(
-                    "📋", id="btn-copy-passcode", classes="copy-btn", disabled=True
+                    "C", id="btn-copy-passcode", classes="copy-btn", disabled=True
                 )
 
         yield Log(id="log-view")
 
     @staticmethod
     def _action_widgets() -> ComposeResult:
-        yield Label("🚀 Proxy Actions", classes="panel-title")
+        yield Label("Proxy Actions", classes="panel-title")
         with Horizontal(classes="btn-row"):
             yield Button("Register", id="btn-register")
             yield Button("Login", id="btn-login")
             yield Button("Connect WS", id="btn-connect", variant="success")
         with Horizontal(classes="btn-row"):
-            yield Button(
-                "🔄 Renew Passcode", id="btn-renew-passcode", variant="warning"
-            )
+            yield Button("Renew Passcode", id="btn-renew-passcode", variant="warning")
 
     def on_mount(self) -> None:
         self.fetch_state_and_status()
@@ -282,25 +280,33 @@ class BackendTUI(App):
             # Try pyperclip first
             try:
                 import pyperclip
+
                 pyperclip.copy(value)
             except ImportError:
                 # Fallback to subprocess for linux/mac
                 import subprocess
                 import sys
                 import shutil
+
                 if sys.platform == "linux":
                     if shutil.which("xclip"):
-                        subprocess.run(["xclip", "-selection", "clipboard"], input=value.encode("utf-8"), check=True)
+                        subprocess.run(
+                            ["xclip", "-selection", "clipboard"],
+                            input=value.encode("utf-8"),
+                            check=True,
+                        )
                     elif shutil.which("wl-copy"):
-                        subprocess.run(["wl-copy"], input=value.encode("utf-8"), check=True)
+                        subprocess.run(
+                            ["wl-copy"], input=value.encode("utf-8"), check=True
+                        )
                     elif shutil.which("xsel"):
-                        subprocess.run(["xsel", "--clipboard", "--input"], input=value.encode("utf-8"), check=True)
+                        subprocess.run(
+                            ["xsel", "--clipboard", "--input"],
+                            input=value.encode("utf-8"),
+                            check=True,
+                        )
                     else:
                         self.copy_to_clipboard(value)
-                elif sys.platform == "darwin":
-                    subprocess.run(["pbcopy"], input=value.encode("utf-8"), check=True)
-                else:
-                    self.copy_to_clipboard(value)
 
             self.log_message(f"Copied {label} to clipboard.")
             self.notify(

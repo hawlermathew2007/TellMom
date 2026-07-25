@@ -97,7 +97,7 @@ async def forward_request(session_id: str, path: str, request: Request):
         raise HTTPException(status_code=404, detail="Session not found")
 
     body_bytes = await request.body()
-    body_b64 = base64.b64encode(body_bytes).decode("ascii")
+    body_b64 = base64.urlsafe_b64encode(body_bytes).decode("ascii")
 
     headers = {k: v for k, v in request.headers.items()}
 
@@ -120,10 +120,11 @@ async def forward_request(session_id: str, path: str, request: Request):
     status = response.get("status", 500)
     resp_headers = response.get("headers", {})
     resp_headers["content-type"] = "application/json"
-    resp_body_b64 = response.get("body", "")
-
-    padding = "=" * (-len(body_b64) % 4)
-    resp_body = base64.b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
+    resp_body_b64 = response.get("body", "").strip()
+    padding = "=" * (-len(resp_body_b64) % 4)
+    resp_body = (
+        base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
+    )
 
     return Response(content=resp_body, status_code=status, headers=resp_headers)
 
@@ -137,48 +138,58 @@ async def forward_ws(websocket: WebSocket, session_id: str, path: str):
 
     await websocket.accept()
     connection_id = str(uuid.uuid4())
-    
-    # Send ws_open
-    try:
-        await send_proxy_ws_message(server_id, {
-            "type": "ws_open",
-            "connection_id": connection_id,
-            "path": f"/{path}",
-            "headers": dict(websocket.headers)
-        })
-    except RuntimeError as exc:
-        await websocket.close(code=1011, reason=str(exc))
-        return
-
-    register_ws_connection(connection_id, websocket)
 
     try:
-        # The payload typing is forwarded first to determine encoding method
+        await send_proxy_ws_message(
+            server_id,
+            {
+                "type": "ws_open",
+                "connection_id": connection_id,
+                "path": f"/{path}",
+                "headers": dict(websocket.headers),
+            },
+        )
+
+        register_ws_connection(connection_id, websocket)
+
         while True:
             msg = await websocket.receive()
-            if "text" in msg:
-                data = msg["text"]
-                opcode = "text"
-            elif "bytes" in msg:
-                data = base64.b64encode(msg["bytes"]).decode('ascii')
-                opcode = "binary"
-            else:
-                continue
 
-            await send_proxy_ws_message(server_id, {
-                "type": "ws_frame",
-                "connection_id": connection_id,
-                "opcode": opcode,
-                "data": data
-            })
-    except WebSocketDisconnect as e:
-        try:
-            await send_proxy_ws_message(server_id, {
-                "type": "ws_close",
-                "connection_id": connection_id,
-                "code": e.code
-            })
-        except Exception:
-            pass
+            match msg["type"]:
+                case "websocket.disconnect":
+                    await send_proxy_ws_message(
+                        server_id,
+                        {
+                            "type": "ws_close",
+                            "connection_id": connection_id,
+                            "code": msg.get("code", 1000),
+                        },
+                    )
+                    break
+
+                case "websocket.receive":
+                    if msg.get("text") is not None:
+                        opcode = "text"
+                        data = msg["text"]
+                    elif msg.get("bytes") is not None:
+                        opcode = "binary"
+                        data = base64.urlsafe_b64encode(msg["bytes"]).decode("ascii")
+                    else:
+                        continue
+
+                    await send_proxy_ws_message(
+                        server_id,
+                        {
+                            "type": "ws_frame",
+                            "connection_id": connection_id,
+                            "opcode": opcode,
+                            "data": data,
+                        },
+                    )
+
+    except RuntimeError as exc:
+        # Failed to communicate with the backend proxy.
+        if websocket.client_state.name == "CONNECTED":
+            await websocket.close(code=1011, reason=str(exc))
     finally:
         unregister_ws_connection(connection_id)

@@ -1,8 +1,7 @@
-import { AlertsApi, AuthApi, ChildrenApi, MessageApi, Configuration, ResponseError } from "./index";
-import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
+import { AlertsApi, AuthApi, ChildrenApi, MessageApi, Configuration } from "./index";
 import { decryptMessage, encryptMessage, base64ToBytes } from "../lib/security";
 
-const PROXY_URL = 'http://localhost:8080';
+const PROXY_URL = import.meta.env.VITE_API_URL;
 const SESSION_ID_KEY = "tellmom_session_id";
 const TOKEN_KEY = "tellmom_token";
 
@@ -11,7 +10,6 @@ let token: string | null = localStorage.getItem(TOKEN_KEY);
 
 export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, forward: boolean = true): Promise<Response> => {
   let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  let appliedEncryption = false;
   let sessionIdUsed = sessionId;
 
   if (sessionId && forward) {
@@ -43,7 +41,6 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
             },
           };
 
-          appliedEncryption = true;
           localStorage.setItem("tellmom_sequence", (seq + 1).toString());
         }
       }
@@ -59,7 +56,7 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
     response = await fetch(urlStr, init);
   }
 
-  if (appliedEncryption && response.ok && sessionIdUsed) {
+  if (response.ok && sessionIdUsed) {
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
       const cloned = response.clone();
@@ -139,32 +136,4 @@ export function clearToken(): void {
 
 export function getApis() {
   return apis;
-}
-
-async function authFetch(path: string, init?: RequestInit): Promise<Response> {
-  const response = await customFetch(path, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: `Bearer ${token ?? ""}`,
-    },
-  });
-  if (!response.ok) {
-    throw new ResponseError(response, `Request failed (${response.status})`);
-  }
-  return response;
-}
-
-export async function fetchAlerts(): Promise<AlertWithExplanation[]> {
-  const response = await authFetch("/api/alerts");
-  return parseAlerts(await response.json());
-}
-
-export async function acknowledgeAlertWithExplanation(
-  alertId: number,
-): Promise<AlertWithExplanation> {
-  const response = await authFetch(`/api/alerts/${alertId}/acknowledge`, {
-    method: "POST",
-  });
-  return parseAlert(await response.json());
 }

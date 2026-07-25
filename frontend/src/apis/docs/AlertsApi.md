@@ -4,15 +4,15 @@ All URIs are relative to *http://localhost*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**acknowledgeAlertAlertsAlertIdAcknowledgePost**](AlertsApi.md#acknowledgealertalertsalertidacknowledgepost) | **POST** /alerts/{alert_id}/acknowledge | Acknowledge Alert |
+| [**acknowledgeAlertAlertsAlertIdAcknowledgePatch**](AlertsApi.md#acknowledgealertalertsalertidacknowledgepatch) | **PATCH** /alerts/{alert_id}/acknowledge | Acknowledge Alert |
 | [**getGroomingAnalysisAlertsAlertIdAnalysisGet**](AlertsApi.md#getgroominganalysisalertsalertidanalysisget) | **GET** /alerts/{alert_id}/analysis | Get Grooming Analysis |
 | [**listAlertsAlertsGet**](AlertsApi.md#listalertsalertsget) | **GET** /alerts | List Alerts |
 
 
 
-## acknowledgeAlertAlertsAlertIdAcknowledgePost
+## acknowledgeAlertAlertsAlertIdAcknowledgePatch
 
-> AlertResponse acknowledgeAlertAlertsAlertIdAcknowledgePost(alertId)
+> AlertResponse acknowledgeAlertAlertsAlertIdAcknowledgePatch(alertId)
 
 Acknowledge Alert
 
@@ -23,7 +23,7 @@ import {
   Configuration,
   AlertsApi,
 } from '';
-import type { AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest } from '';
+import type { AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -36,10 +36,10 @@ async function example() {
   const body = {
     // number
     alertId: 56,
-  } satisfies AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest;
+  } satisfies AcknowledgeAlertAlertsAlertIdAcknowledgePatchRequest;
 
   try {
-    const data = await api.acknowledgeAlertAlertsAlertIdAcknowledgePost(body);
+    const data = await api.acknowledgeAlertAlertsAlertIdAcknowledgePatch(body);
     console.log(data);
   } catch (error) {
     console.error(error);
