@@ -119,10 +119,11 @@ async def forward_request(session_id: str, path: str, request: Request):
 
     status = response.get("status", 500)
     resp_headers = response.get("headers", {})
+    resp_headers["content-type"] = "application/json"
     resp_body_b64 = response.get("body", "")
 
     padding = "=" * (-len(body_b64) % 4)
-    resp_body = base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
+    resp_body = base64.b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
 
     return Response(content=resp_body, status_code=status, headers=resp_headers)
 

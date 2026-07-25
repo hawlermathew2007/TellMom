@@ -163,7 +163,7 @@ export default function AiAnalysisPanel({
             setTimeout(() => setStatusMessage("Running grooming classifier models..."), 500);
             setTimeout(() => setStatusMessage("Evaluating grooming stages sequence..."), 1000);
 
-            const response = await getApis().alerts.getGroomingAnalysisApiAlertsAlertIdAnalysisGet({
+            const response = await getApis().alerts.getGroomingAnalysisAlertsAlertIdAnalysisGet({
                 alertId: alert.id
             });
 

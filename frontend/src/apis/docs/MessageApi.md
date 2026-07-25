@@ -1,41 +1,39 @@
-# ClassifierApi
+# MessageApi
 
 All URIs are relative to *http://localhost*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**classifierCheckinClassifierCheckinPost**](ClassifierApi.md#classifiercheckinclassifiercheckinpost) | **POST** /classifier/checkin | Classifier Checkin |
+| [**ingestMessageIngestPost**](MessageApi.md#ingestmessageingestpost) | **POST** /message/ingest | Ingest |
 
 
 
-## classifierCheckinClassifierCheckinPost
+## ingestMessageIngestPost
 
-> ClassifierCheckInResponse classifierCheckinClassifierCheckinPost(classifierCheckInRequest, xPassword)
+> ingestMessageIngestPost(ingestRequest)
 
-Classifier Checkin
+Ingest
 
 ### Example
 
 ```ts
 import {
   Configuration,
-  ClassifierApi,
+  MessageApi,
 } from '';
-import type { ClassifierCheckinClassifierCheckinPostRequest } from '';
+import type { IngestMessageIngestPostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
-  const api = new ClassifierApi();
+  const api = new MessageApi();
 
   const body = {
-    // ClassifierCheckInRequest
-    classifierCheckInRequest: ...,
-    // string (optional)
-    xPassword: xPassword_example,
-  } satisfies ClassifierCheckinClassifierCheckinPostRequest;
+    // IngestRequest
+    ingestRequest: ...,
+  } satisfies IngestMessageIngestPostRequest;
 
   try {
-    const data = await api.classifierCheckinClassifierCheckinPost(body);
+    const data = await api.ingestMessageIngestPost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -51,12 +49,11 @@ example().catch(console.error);
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **classifierCheckInRequest** | [ClassifierCheckInRequest](ClassifierCheckInRequest.md) |  | |
-| **xPassword** | `string` |  | [Optional] [Defaults to `undefined`] |
+| **ingestRequest** | [IngestRequest](IngestRequest.md) |  | |
 
 ### Return type
 
-[**ClassifierCheckInResponse**](ClassifierCheckInResponse.md)
+`void` (Empty response body)
 
 ### Authorization
 
@@ -71,7 +68,7 @@ No authorization required
 ### HTTP response details
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
-| **200** | Successful Response |  -  |
+| **204** | Successful Response |  -  |
 | **422** | Validation Error |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)

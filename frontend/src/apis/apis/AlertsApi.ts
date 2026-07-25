@@ -30,11 +30,11 @@ import {
     IncrementalAnalysisResponseToJSON,
 } from '../models/IncrementalAnalysisResponse';
 
-export interface AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest {
+export interface AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest {
     alertId: number;
 }
 
-export interface GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest {
+export interface GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest {
     alertId: number;
 }
 
@@ -44,13 +44,13 @@ export interface GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest {
 export class AlertsApi extends runtime.BaseAPI {
 
     /**
-     * Creates request options for acknowledgeAlertApiAlertsAlertIdAcknowledgePost without sending the request
+     * Creates request options for acknowledgeAlertAlertsAlertIdAcknowledgePost without sending the request
      */
-    async acknowledgeAlertApiAlertsAlertIdAcknowledgePostRequestOpts(requestParameters: AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest): Promise<runtime.RequestOpts> {
+    async acknowledgeAlertAlertsAlertIdAcknowledgePostRequestOpts(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['alertId'] == null) {
             throw new runtime.RequiredError(
                 'alertId',
-                'Required parameter "alertId" was null or undefined when calling acknowledgeAlertApiAlertsAlertIdAcknowledgePost().'
+                'Required parameter "alertId" was null or undefined when calling acknowledgeAlertAlertsAlertIdAcknowledgePost().'
             );
         }
 
@@ -67,7 +67,7 @@ export class AlertsApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/alerts/{alert_id}/acknowledge`;
+        let urlPath = `/alerts/{alert_id}/acknowledge`;
         urlPath = urlPath.replace('{alert_id}', encodeURIComponent(String(requestParameters['alertId'])));
 
         return {
@@ -81,8 +81,8 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * Acknowledge Alert
      */
-    async acknowledgeAlertApiAlertsAlertIdAcknowledgePostRaw(requestParameters: AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AlertResponse>> {
-        const requestOptions = await this.acknowledgeAlertApiAlertsAlertIdAcknowledgePostRequestOpts(requestParameters);
+    async acknowledgeAlertAlertsAlertIdAcknowledgePostRaw(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<AlertResponse>> {
+        const requestOptions = await this.acknowledgeAlertAlertsAlertIdAcknowledgePostRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => AlertResponseFromJSON(jsonValue));
@@ -91,19 +91,19 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * Acknowledge Alert
      */
-    async acknowledgeAlertApiAlertsAlertIdAcknowledgePost(requestParameters: AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AlertResponse> {
-        const response = await this.acknowledgeAlertApiAlertsAlertIdAcknowledgePostRaw(requestParameters, initOverrides);
+    async acknowledgeAlertAlertsAlertIdAcknowledgePost(requestParameters: AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AlertResponse> {
+        const response = await this.acknowledgeAlertAlertsAlertIdAcknowledgePostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for getGroomingAnalysisApiAlertsAlertIdAnalysisGet without sending the request
+     * Creates request options for getGroomingAnalysisAlertsAlertIdAnalysisGet without sending the request
      */
-    async getGroomingAnalysisApiAlertsAlertIdAnalysisGetRequestOpts(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest): Promise<runtime.RequestOpts> {
+    async getGroomingAnalysisAlertsAlertIdAnalysisGetRequestOpts(requestParameters: GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['alertId'] == null) {
             throw new runtime.RequiredError(
                 'alertId',
-                'Required parameter "alertId" was null or undefined when calling getGroomingAnalysisApiAlertsAlertIdAnalysisGet().'
+                'Required parameter "alertId" was null or undefined when calling getGroomingAnalysisAlertsAlertIdAnalysisGet().'
             );
         }
 
@@ -120,7 +120,7 @@ export class AlertsApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/alerts/{alert_id}/analysis`;
+        let urlPath = `/alerts/{alert_id}/analysis`;
         urlPath = urlPath.replace('{alert_id}', encodeURIComponent(String(requestParameters['alertId'])));
 
         return {
@@ -135,8 +135,8 @@ export class AlertsApi extends runtime.BaseAPI {
      * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
      * Get Grooming Analysis
      */
-    async getGroomingAnalysisApiAlertsAlertIdAnalysisGetRaw(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IncrementalAnalysisResponse>> {
-        const requestOptions = await this.getGroomingAnalysisApiAlertsAlertIdAnalysisGetRequestOpts(requestParameters);
+    async getGroomingAnalysisAlertsAlertIdAnalysisGetRaw(requestParameters: GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IncrementalAnalysisResponse>> {
+        const requestOptions = await this.getGroomingAnalysisAlertsAlertIdAnalysisGetRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => IncrementalAnalysisResponseFromJSON(jsonValue));
@@ -146,15 +146,15 @@ export class AlertsApi extends runtime.BaseAPI {
      * Get or generate incremental grooming analysis for an alert.  Returns only newly detected stages (empty if none detected or already fully analyzed).
      * Get Grooming Analysis
      */
-    async getGroomingAnalysisApiAlertsAlertIdAnalysisGet(requestParameters: GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IncrementalAnalysisResponse> {
-        const response = await this.getGroomingAnalysisApiAlertsAlertIdAnalysisGetRaw(requestParameters, initOverrides);
+    async getGroomingAnalysisAlertsAlertIdAnalysisGet(requestParameters: GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IncrementalAnalysisResponse> {
+        const response = await this.getGroomingAnalysisAlertsAlertIdAnalysisGetRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for listAlertsApiAlertsGet without sending the request
+     * Creates request options for listAlertsAlertsGet without sending the request
      */
-    async listAlertsApiAlertsGetRequestOpts(): Promise<runtime.RequestOpts> {
+    async listAlertsAlertsGetRequestOpts(): Promise<runtime.RequestOpts> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -168,7 +168,7 @@ export class AlertsApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/alerts`;
+        let urlPath = `/alerts`;
 
         return {
             path: urlPath,
@@ -181,8 +181,8 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * List Alerts
      */
-    async listAlertsApiAlertsGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<AlertResponse>>> {
-        const requestOptions = await this.listAlertsApiAlertsGetRequestOpts();
+    async listAlertsAlertsGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<AlertResponse>>> {
+        const requestOptions = await this.listAlertsAlertsGetRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => jsonValue.map(AlertResponseFromJSON));
@@ -191,8 +191,8 @@ export class AlertsApi extends runtime.BaseAPI {
     /**
      * List Alerts
      */
-    async listAlertsApiAlertsGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<AlertResponse>> {
-        const response = await this.listAlertsApiAlertsGetRaw(initOverrides);
+    async listAlertsAlertsGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<AlertResponse>> {
+        const response = await this.listAlertsAlertsGetRaw(initOverrides);
         return await response.value();
     }
 

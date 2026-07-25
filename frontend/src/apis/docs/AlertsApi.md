@@ -4,15 +4,15 @@ All URIs are relative to *http://localhost*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**acknowledgeAlertApiAlertsAlertIdAcknowledgePost**](AlertsApi.md#acknowledgealertapialertsalertidacknowledgepost) | **POST** /api/alerts/{alert_id}/acknowledge | Acknowledge Alert |
-| [**getGroomingAnalysisApiAlertsAlertIdAnalysisGet**](AlertsApi.md#getgroominganalysisapialertsalertidanalysisget) | **GET** /api/alerts/{alert_id}/analysis | Get Grooming Analysis |
-| [**listAlertsApiAlertsGet**](AlertsApi.md#listalertsapialertsget) | **GET** /api/alerts | List Alerts |
+| [**acknowledgeAlertAlertsAlertIdAcknowledgePost**](AlertsApi.md#acknowledgealertalertsalertidacknowledgepost) | **POST** /alerts/{alert_id}/acknowledge | Acknowledge Alert |
+| [**getGroomingAnalysisAlertsAlertIdAnalysisGet**](AlertsApi.md#getgroominganalysisalertsalertidanalysisget) | **GET** /alerts/{alert_id}/analysis | Get Grooming Analysis |
+| [**listAlertsAlertsGet**](AlertsApi.md#listalertsalertsget) | **GET** /alerts | List Alerts |
 
 
 
-## acknowledgeAlertApiAlertsAlertIdAcknowledgePost
+## acknowledgeAlertAlertsAlertIdAcknowledgePost
 
-> AlertResponse acknowledgeAlertApiAlertsAlertIdAcknowledgePost(alertId)
+> AlertResponse acknowledgeAlertAlertsAlertIdAcknowledgePost(alertId)
 
 Acknowledge Alert
 
@@ -23,7 +23,7 @@ import {
   Configuration,
   AlertsApi,
 } from '';
-import type { AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest } from '';
+import type { AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -36,10 +36,10 @@ async function example() {
   const body = {
     // number
     alertId: 56,
-  } satisfies AcknowledgeAlertApiAlertsAlertIdAcknowledgePostRequest;
+  } satisfies AcknowledgeAlertAlertsAlertIdAcknowledgePostRequest;
 
   try {
-    const data = await api.acknowledgeAlertApiAlertsAlertIdAcknowledgePost(body);
+    const data = await api.acknowledgeAlertAlertsAlertIdAcknowledgePost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -80,9 +80,9 @@ example().catch(console.error);
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## getGroomingAnalysisApiAlertsAlertIdAnalysisGet
+## getGroomingAnalysisAlertsAlertIdAnalysisGet
 
-> IncrementalAnalysisResponse getGroomingAnalysisApiAlertsAlertIdAnalysisGet(alertId)
+> IncrementalAnalysisResponse getGroomingAnalysisAlertsAlertIdAnalysisGet(alertId)
 
 Get Grooming Analysis
 
@@ -95,7 +95,7 @@ import {
   Configuration,
   AlertsApi,
 } from '';
-import type { GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest } from '';
+import type { GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -108,10 +108,10 @@ async function example() {
   const body = {
     // number
     alertId: 56,
-  } satisfies GetGroomingAnalysisApiAlertsAlertIdAnalysisGetRequest;
+  } satisfies GetGroomingAnalysisAlertsAlertIdAnalysisGetRequest;
 
   try {
-    const data = await api.getGroomingAnalysisApiAlertsAlertIdAnalysisGet(body);
+    const data = await api.getGroomingAnalysisAlertsAlertIdAnalysisGet(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -152,9 +152,9 @@ example().catch(console.error);
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## listAlertsApiAlertsGet
+## listAlertsAlertsGet
 
-> Array&lt;AlertResponse&gt; listAlertsApiAlertsGet()
+> Array&lt;AlertResponse&gt; listAlertsAlertsGet()
 
 List Alerts
 
@@ -165,7 +165,7 @@ import {
   Configuration,
   AlertsApi,
 } from '';
-import type { ListAlertsApiAlertsGetRequest } from '';
+import type { ListAlertsAlertsGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -176,7 +176,7 @@ async function example() {
   const api = new AlertsApi(config);
 
   try {
-    const data = await api.listAlertsApiAlertsGet();
+    const data = await api.listAlertsAlertsGet();
     console.log(data);
   } catch (error) {
     console.error(error);

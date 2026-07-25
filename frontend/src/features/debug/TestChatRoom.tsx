@@ -85,7 +85,7 @@ export default function TestChatRoom({ children }: TestChatRoomProps) {
 
         try {
             // Direct ingest API POST to backend
-            await getApis().ingests.ingestApiIngestPost({
+            await getApis().ingests.ingestMessageIngestPost({
                 ingestRequest: {
                     platform,
                     userId: senderId,

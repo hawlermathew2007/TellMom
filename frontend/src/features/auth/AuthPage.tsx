@@ -22,13 +22,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     try {
       const apis = getApis();
       if (mode === "register") {
-        await apis.auth.registerParentApiAuthRegisterPost({
+        await apis.auth.registerParentAuthRegisterPost({
           parentRegister: { email, password },
         });
       }
 
       // Automatically login after registration or standard login
-      const response = await apis.auth.loginParentApiAuthLoginPost({
+      const response = await apis.auth.loginParentAuthLoginPost({
         parentLogin: { email, password },
       });
 

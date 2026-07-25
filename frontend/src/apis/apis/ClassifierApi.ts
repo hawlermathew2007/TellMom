@@ -30,7 +30,7 @@ import {
     HTTPValidationErrorToJSON,
 } from '../models/HTTPValidationError';
 
-export interface ClassifierCheckinCheckinPostRequest {
+export interface ClassifierCheckinClassifierCheckinPostRequest {
     classifierCheckInRequest: ClassifierCheckInRequest;
     xPassword?: string | null;
 }
@@ -41,13 +41,13 @@ export interface ClassifierCheckinCheckinPostRequest {
 export class ClassifierApi extends runtime.BaseAPI {
 
     /**
-     * Creates request options for classifierCheckinCheckinPost without sending the request
+     * Creates request options for classifierCheckinClassifierCheckinPost without sending the request
      */
-    async classifierCheckinCheckinPostRequestOpts(requestParameters: ClassifierCheckinCheckinPostRequest): Promise<runtime.RequestOpts> {
+    async classifierCheckinClassifierCheckinPostRequestOpts(requestParameters: ClassifierCheckinClassifierCheckinPostRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['classifierCheckInRequest'] == null) {
             throw new runtime.RequiredError(
                 'classifierCheckInRequest',
-                'Required parameter "classifierCheckInRequest" was null or undefined when calling classifierCheckinCheckinPost().'
+                'Required parameter "classifierCheckInRequest" was null or undefined when calling classifierCheckinClassifierCheckinPost().'
             );
         }
 
@@ -62,7 +62,7 @@ export class ClassifierApi extends runtime.BaseAPI {
         }
 
 
-        let urlPath = `/checkin`;
+        let urlPath = `/classifier/checkin`;
 
         return {
             path: urlPath,
@@ -76,8 +76,8 @@ export class ClassifierApi extends runtime.BaseAPI {
     /**
      * Classifier Checkin
      */
-    async classifierCheckinCheckinPostRaw(requestParameters: ClassifierCheckinCheckinPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ClassifierCheckInResponse>> {
-        const requestOptions = await this.classifierCheckinCheckinPostRequestOpts(requestParameters);
+    async classifierCheckinClassifierCheckinPostRaw(requestParameters: ClassifierCheckinClassifierCheckinPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ClassifierCheckInResponse>> {
+        const requestOptions = await this.classifierCheckinClassifierCheckinPostRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ClassifierCheckInResponseFromJSON(jsonValue));
@@ -86,8 +86,8 @@ export class ClassifierApi extends runtime.BaseAPI {
     /**
      * Classifier Checkin
      */
-    async classifierCheckinCheckinPost(requestParameters: ClassifierCheckinCheckinPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ClassifierCheckInResponse> {
-        const response = await this.classifierCheckinCheckinPostRaw(requestParameters, initOverrides);
+    async classifierCheckinClassifierCheckinPost(requestParameters: ClassifierCheckinClassifierCheckinPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ClassifierCheckInResponse> {
+        const response = await this.classifierCheckinClassifierCheckinPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

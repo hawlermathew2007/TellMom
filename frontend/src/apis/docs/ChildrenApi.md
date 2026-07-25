@@ -4,16 +4,16 @@ All URIs are relative to *http://localhost*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**createChildApiChildrenPost**](ChildrenApi.md#createchildapichildrenpost) | **POST** /api/children | Create Child |
-| [**deleteChildApiChildrenChildIdDelete**](ChildrenApi.md#deletechildapichildrenchildiddelete) | **DELETE** /api/children/{child_id} | Delete Child |
-| [**listChildrenApiChildrenGet**](ChildrenApi.md#listchildrenapichildrenget) | **GET** /api/children | List Children |
-| [**updateChildApiChildrenChildIdPut**](ChildrenApi.md#updatechildapichildrenchildidput) | **PUT** /api/children/{child_id} | Update Child |
+| [**createChildChildrenPost**](ChildrenApi.md#createchildchildrenpost) | **POST** /children | Create Child |
+| [**deleteChildChildrenChildIdDelete**](ChildrenApi.md#deletechildchildrenchildiddelete) | **DELETE** /children/{child_id} | Delete Child |
+| [**listChildrenChildrenGet**](ChildrenApi.md#listchildrenchildrenget) | **GET** /children | List Children |
+| [**updateChildChildrenChildIdPut**](ChildrenApi.md#updatechildchildrenchildidput) | **PUT** /children/{child_id} | Update Child |
 
 
 
-## createChildApiChildrenPost
+## createChildChildrenPost
 
-> ChildAccountResponse createChildApiChildrenPost(childAccountCreate)
+> ChildAccountResponse createChildChildrenPost(childAccountCreate)
 
 Create Child
 
@@ -24,7 +24,7 @@ import {
   Configuration,
   ChildrenApi,
 } from '';
-import type { CreateChildApiChildrenPostRequest } from '';
+import type { CreateChildChildrenPostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -37,10 +37,10 @@ async function example() {
   const body = {
     // ChildAccountCreate
     childAccountCreate: ...,
-  } satisfies CreateChildApiChildrenPostRequest;
+  } satisfies CreateChildChildrenPostRequest;
 
   try {
-    const data = await api.createChildApiChildrenPost(body);
+    const data = await api.createChildChildrenPost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -81,9 +81,9 @@ example().catch(console.error);
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## deleteChildApiChildrenChildIdDelete
+## deleteChildChildrenChildIdDelete
 
-> deleteChildApiChildrenChildIdDelete(childId)
+> deleteChildChildrenChildIdDelete(childId)
 
 Delete Child
 
@@ -94,7 +94,7 @@ import {
   Configuration,
   ChildrenApi,
 } from '';
-import type { DeleteChildApiChildrenChildIdDeleteRequest } from '';
+import type { DeleteChildChildrenChildIdDeleteRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -107,10 +107,10 @@ async function example() {
   const body = {
     // number
     childId: 56,
-  } satisfies DeleteChildApiChildrenChildIdDeleteRequest;
+  } satisfies DeleteChildChildrenChildIdDeleteRequest;
 
   try {
-    const data = await api.deleteChildApiChildrenChildIdDelete(body);
+    const data = await api.deleteChildChildrenChildIdDelete(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -151,9 +151,9 @@ example().catch(console.error);
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## listChildrenApiChildrenGet
+## listChildrenChildrenGet
 
-> Array&lt;ChildAccountResponse&gt; listChildrenApiChildrenGet()
+> Array&lt;ChildAccountResponse&gt; listChildrenChildrenGet()
 
 List Children
 
@@ -164,7 +164,7 @@ import {
   Configuration,
   ChildrenApi,
 } from '';
-import type { ListChildrenApiChildrenGetRequest } from '';
+import type { ListChildrenChildrenGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -175,7 +175,7 @@ async function example() {
   const api = new ChildrenApi(config);
 
   try {
-    const data = await api.listChildrenApiChildrenGet();
+    const data = await api.listChildrenChildrenGet();
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -212,9 +212,9 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## updateChildApiChildrenChildIdPut
+## updateChildChildrenChildIdPut
 
-> ChildAccountResponse updateChildApiChildrenChildIdPut(childId, childAccountUpdate)
+> ChildAccountResponse updateChildChildrenChildIdPut(childId, childAccountUpdate)
 
 Update Child
 
@@ -225,7 +225,7 @@ import {
   Configuration,
   ChildrenApi,
 } from '';
-import type { UpdateChildApiChildrenChildIdPutRequest } from '';
+import type { UpdateChildChildrenChildIdPutRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -240,10 +240,10 @@ async function example() {
     childId: 56,
     // ChildAccountUpdate
     childAccountUpdate: ...,
-  } satisfies UpdateChildApiChildrenChildIdPutRequest;
+  } satisfies UpdateChildChildrenChildIdPutRequest;
 
   try {
-    const data = await api.updateChildApiChildrenChildIdPut(body);
+    const data = await api.updateChildChildrenChildIdPut(body);
     console.log(data);
   } catch (error) {
     console.error(error);

@@ -5,4 +5,5 @@ export * from './AlertsApi';
 export * from './AuthApi';
 export * from './ChildrenApi';
 export * from './ClassifierApi';
-export * from './DefaultApi';
+export * from './ManagementApi';
+export * from './MessageApi';

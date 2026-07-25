@@ -4,15 +4,15 @@ All URIs are relative to *http://localhost*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**getMeApiAuthMeGet**](AuthApi.md#getmeapiauthmeget) | **GET** /api/auth/me | Get Me |
-| [**loginParentApiAuthLoginPost**](AuthApi.md#loginparentapiauthloginpost) | **POST** /api/auth/login | Login Parent |
-| [**registerParentApiAuthRegisterPost**](AuthApi.md#registerparentapiauthregisterpost) | **POST** /api/auth/register | Register Parent |
+| [**getMeAuthMeGet**](AuthApi.md#getmeauthmeget) | **GET** /auth/me | Get Me |
+| [**loginParentAuthLoginPost**](AuthApi.md#loginparentauthloginpost) | **POST** /auth/login | Login Parent |
+| [**registerParentAuthRegisterPost**](AuthApi.md#registerparentauthregisterpost) | **POST** /auth/register | Register Parent |
 
 
 
-## getMeApiAuthMeGet
+## getMeAuthMeGet
 
-> ParentResponse getMeApiAuthMeGet()
+> ParentResponse getMeAuthMeGet()
 
 Get Me
 
@@ -23,7 +23,7 @@ import {
   Configuration,
   AuthApi,
 } from '';
-import type { GetMeApiAuthMeGetRequest } from '';
+import type { GetMeAuthMeGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -34,7 +34,7 @@ async function example() {
   const api = new AuthApi(config);
 
   try {
-    const data = await api.getMeApiAuthMeGet();
+    const data = await api.getMeAuthMeGet();
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -71,9 +71,9 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## loginParentApiAuthLoginPost
+## loginParentAuthLoginPost
 
-> TokenResponse loginParentApiAuthLoginPost(parentLogin)
+> TokenResponse loginParentAuthLoginPost(parentLogin)
 
 Login Parent
 
@@ -84,7 +84,7 @@ import {
   Configuration,
   AuthApi,
 } from '';
-import type { LoginParentApiAuthLoginPostRequest } from '';
+import type { LoginParentAuthLoginPostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -93,10 +93,10 @@ async function example() {
   const body = {
     // ParentLogin
     parentLogin: ...,
-  } satisfies LoginParentApiAuthLoginPostRequest;
+  } satisfies LoginParentAuthLoginPostRequest;
 
   try {
-    const data = await api.loginParentApiAuthLoginPost(body);
+    const data = await api.loginParentAuthLoginPost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -137,9 +137,9 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## registerParentApiAuthRegisterPost
+## registerParentAuthRegisterPost
 
-> ParentResponse registerParentApiAuthRegisterPost(parentRegister)
+> ParentResponse registerParentAuthRegisterPost(parentRegister)
 
 Register Parent
 
@@ -150,7 +150,7 @@ import {
   Configuration,
   AuthApi,
 } from '';
-import type { RegisterParentApiAuthRegisterPostRequest } from '';
+import type { RegisterParentAuthRegisterPostRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
@@ -159,10 +159,10 @@ async function example() {
   const body = {
     // ParentRegister
     parentRegister: ...,
-  } satisfies RegisterParentApiAuthRegisterPostRequest;
+  } satisfies RegisterParentAuthRegisterPostRequest;
 
   try {
-    const data = await api.registerParentApiAuthRegisterPost(body);
+    const data = await api.registerParentAuthRegisterPost(body);
     console.log(data);
   } catch (error) {
     console.error(error);

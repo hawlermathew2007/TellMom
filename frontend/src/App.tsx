@@ -74,8 +74,8 @@ export default function App() {
         try {
             const apis = getApis();
             const [me, kids, alertLogs] = await Promise.all([
-                apis.auth.getMeApiAuthMeGet(),
-                apis.children.listChildrenApiChildrenGet(),
+                apis.auth.getMeAuthMeGet(),
+                apis.children.listChildrenChildrenGet(),
                 fetchAlerts(),
             ]);
 

@@ -1,5 +1,6 @@
-import { AlertsApi, AuthApi, ChildrenApi, DefaultApi, Configuration, ResponseError } from "./index";
+import { AlertsApi, AuthApi, ChildrenApi, MessageApi, Configuration, ResponseError } from "./index";
 import { AlertWithExplanation, parseAlert, parseAlerts } from "../lib/parseAlert";
+import { decryptMessage, encryptMessage, base64ToBytes } from "../lib/security";
 
 const PROXY_URL = 'http://localhost:8080';
 const SESSION_ID_KEY = "tellmom_session_id";
@@ -29,10 +30,8 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
 
         if (aesKeyB64 && nonceBaseB64) {
           // Dynamic import to avoid circular dependency issues at the top level
-          const { encryptMessage, base64ToBytes } = await import("../lib/security");
           const aesKey = base64ToBytes(aesKeyB64);
           const nonceBase = base64ToBytes(nonceBaseB64);
-
           const encrypted = await encryptMessage(seq, aesKey, nonceBase, init.body as string, sessionId);
 
           init = {
@@ -50,7 +49,7 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
       }
     }
   } else {
-      urlStr = PROXY_URL + urlStr;
+    urlStr = PROXY_URL + urlStr;
   }
 
   let response: Response;
@@ -70,11 +69,10 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
           const aesKeyB64 = localStorage.getItem("tellmom_aes_key");
           const nonceBaseB64 = localStorage.getItem("tellmom_nonce_base");
           if (aesKeyB64 && nonceBaseB64) {
-            const { decryptMessage, base64ToBytes } = await import("../lib/security");
             const aesKey = base64ToBytes(aesKeyB64);
             const nonceBase = base64ToBytes(nonceBaseB64);
             const aad = new TextEncoder().encode(`${sessionIdUsed}:${bodyJson.sequence}`);
-            
+
             const decryptedString = await decryptMessage(aesKey, nonceBase, bodyJson, aad);
             return new Response(decryptedString, {
               status: response.status,
@@ -85,10 +83,10 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
         }
       } catch (e) {
         // Fallback to original response
+        console.error(`An error occured: ${e}`);
       }
     }
   }
-
   return response;
 };
 
@@ -106,7 +104,7 @@ function createApis() {
     auth: new AuthApi(config),
     children: new ChildrenApi(config),
     alerts: new AlertsApi(config),
-    ingests: new DefaultApi(config),
+    ingests: new MessageApi(config),
   };
 }
 

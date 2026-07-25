@@ -44,7 +44,7 @@ export default function ChildrenManagement({ children, onRefresh }: ChildrenMana
     setIsLoading(true);
 
     try {
-      await getApis().children.createChildApiChildrenPost({
+      await getApis().children.createChildChildrenPost({
         childAccountCreate: {
           platform,
           platformUserId: platformUserId.trim(),
@@ -89,7 +89,7 @@ export default function ChildrenManagement({ children, onRefresh }: ChildrenMana
     setError("");
 
     try {
-      await getApis().children.updateChildApiChildrenChildIdPut({
+      await getApis().children.updateChildChildrenChildIdPut({
         childId,
         childAccountUpdate: {
           platformUserId: editPlatformUserId.trim(),
@@ -118,7 +118,7 @@ export default function ChildrenManagement({ children, onRefresh }: ChildrenMana
     setIsLoading(true);
     setError("");
     try {
-      await getApis().children.deleteChildApiChildrenChildIdDelete({ childId });
+      await getApis().children.deleteChildChildrenChildIdDelete({ childId });
       setDeleteConfirmId(null);
       await onRefresh();
     } catch (err: unknown) {

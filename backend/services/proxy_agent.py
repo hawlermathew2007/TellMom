@@ -225,8 +225,6 @@ class ProxyAgent:
                 if connection_id:
                     self.active_ws.pop(connection_id, None)
 
-    # TODO: move the protocol to a share folder, apply the generic protocol handler for both the proxy server
-    # and the potential future clients that might need it
     async def _handle_forward_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message["session_id"]
@@ -413,7 +411,7 @@ class ProxyState:
         self.proxy_url = ""
         self.username = ""
         self.password = ""
-        self.local_url = "http://127.0.0.1:8080"
+        self.local_url = "http://127.0.0.1:8000"
 
     @classmethod
     def current(cls) -> ProxyState:
