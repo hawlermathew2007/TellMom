@@ -16,7 +16,7 @@ async def lifespan(_: FastAPI):
     init_db()
     load_state()
     state = ProxyState.current()
-    proxy_manager.update_config(
+    await proxy_manager.update_config(
         getattr(state, "proxy_url", ""),
         getattr(state, "username", ""),
         getattr(state, "password", ""),

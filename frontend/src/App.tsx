@@ -96,8 +96,7 @@ export default function App() {
         const fetchMe = async () => {
             try {
                 const apis = getApis();
-                const resp = await apis.auth.getMeAuthMeGet();
-                console.log(resp);
+                await apis.auth.getMeAuthMeGet();
             } catch (e: any) {
                 console.log(e);
                 const status = e.status ?? e.response?.status;

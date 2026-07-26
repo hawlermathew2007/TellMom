@@ -137,7 +137,7 @@ def test_full_proxy_roundtrip(servers, postgres) -> None:
                 content=encrypted_body,
                 headers={"content-type": "application/json"},
             )
-            assert resp.status_code == 200
+            assert resp.status_code == 204
 
             resp_enc_msg = EncryptedMessage.model_validate(resp.json())
             decrypted_bytes = sec.decrypt_message(

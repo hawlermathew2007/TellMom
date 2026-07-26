@@ -25,7 +25,7 @@ async def update_state(data: ConfigUpdate):
     state.local_url = data.local_url
     save_state()
     
-    proxy_manager.update_config(state.proxy_url, state.username, state.password, state.local_url)
+    await proxy_manager.update_config(state.proxy_url, state.username, state.password, state.local_url)
     return {"status": "ok"}
 
 @router.post("/renew_passcode")
@@ -60,7 +60,12 @@ async def connect():
 
 @router.get("/status")
 async def status():
+    current_status = proxy_manager.status
+    if proxy_manager.agent and proxy_manager.agent.status in ["reconnecting", "connecting", "disconnected", "login_failed"]:
+        if current_status not in ["Login Failed", "Connect Failed", "Config Missing"]:
+            current_status = proxy_manager.agent.status.replace("_", " ").title()
+            
     return {
-        "status": proxy_manager.status,
+        "status": current_status,
         "server_id": proxy_manager.agent.server_id if proxy_manager.agent else None
     }

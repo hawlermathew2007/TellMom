@@ -47,6 +47,15 @@ class ProxyAgent:
         self.session_states: dict[str, SessionState] = {}
         self.active_ws: dict[str, websockets.ClientConnection] = {}
         self.status = "disconnected"
+        self._stopped = False
+
+    async def stop(self) -> None:
+        self._stopped = True
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception:
+                pass
 
     async def register(self) -> None:
         async with httpx.AsyncClient() as client:
@@ -112,6 +121,35 @@ class ProxyAgent:
         finally:
             self.websocket = None
             self.status = "disconnected"
+            if not self._stopped:
+                asyncio.create_task(self._reconnect())
+
+    async def _reconnect(self) -> None:
+        if self._stopped:
+            return
+        await asyncio.sleep(5)
+        if self._stopped or self.websocket is not None:
+            return
+
+        logger.info("Attempting to auto-reconnect to proxy...")
+        self.status = "reconnecting"
+        try:
+            await self.login()
+        except Exception as exc:
+            logger.error("Auto-reconnect login failed: %s", exc)
+            self.status = "login_failed"
+            self._stopped = True
+            return
+        
+        if self._stopped:
+            return
+            
+        try:
+            await self.connect()
+        except Exception as exc:
+            logger.error("Auto-reconnect connect failed: %s", exc)
+            self.status = "disconnected"
+            asyncio.create_task(self._reconnect())
 
     async def _handle_proxy_request(self, message: dict[str, Any]) -> None:
         message_type = message.get("type")
@@ -257,7 +295,7 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body="Provided sequence number does not match with expected value!",
+                    body=base64.urlsafe_b64encode(b"Provided sequence number does not match with expected value!").decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -266,7 +304,7 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body=f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!",
+                    body=base64.urlsafe_b64encode(f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!".encode()).decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -275,7 +313,7 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body="User hasn't intitialized dh key exchange yet!",
+                    body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -288,8 +326,12 @@ class ProxyAgent:
                     encrypted_message=msg,
                     aad=aad,
                 )
+
             except Exception as e:
                 logger.error("Failed to decrypt forward request: %s", e)
+
+            finally:
+                state.sequence = state.sequence + 1
 
         # Build the full path with query
         url = f"{self.local_url}{path}"
@@ -309,7 +351,6 @@ class ProxyAgent:
                 resp_body = resp.content.decode()
                 resp_status = resp.status_code
 
-                state.sequence = state.sequence + 1
                 ciphertext = encrypt_message(
                     sequence=state.sequence,
                     aes_key=state.aes_key,
@@ -330,7 +371,7 @@ class ProxyAgent:
         except Exception as exc:
             logger.error("Failed to forward request %s: %s", request_id, exc)
             tunnel_resp = TunnelResponse(
-                request_id=request_id, status=502, body=f"Error: {exc}"
+                request_id=request_id, status=502, body=base64.urlsafe_b64encode(f"Error: {exc}".encode()).decode("ascii")
             )
             await self._send_response(tunnel_resp)
 

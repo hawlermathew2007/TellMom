@@ -6,6 +6,7 @@ import json
 import logging
 
 import httpx
+from shared.schemas.tunnel import EncryptedMessage
 from shared.schemas.response import ResponseStatus
 from shared.services.security import (
     generate_dh_private_key,
@@ -102,8 +103,6 @@ class SecureProxyClient:
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("status") != ResponseStatus.SUCCESS.value:
-            raise RuntimeError(data.get("reason", "Encrypted message rejected"))
 
         server_sequence = data.get("sequence")
         server_nonce_str = data.get("nonce", "")
@@ -113,7 +112,7 @@ class SecureProxyClient:
         decrypted = decrypt_message(
             aes_key=self.aes_key,
             nonce_base=server_nonce,
-            encrypted_message=data.get("ciphertext", ""),
+            encrypted_message=EncryptedMessage(**data),
             aad=f"{self.session_id}:{server_sequence}".encode("utf-8"),
         ).decode()
         return decrypted
