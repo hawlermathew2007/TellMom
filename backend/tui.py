@@ -105,10 +105,12 @@ class BackendTUI(App):
         min-width: 12;
     }
 
-    Button.copy-btn {
+    .copy-btn {
+        width: 6;
         min-width: 6;
-        width: auto;
-        margin: 0 0 0 1;
+        height: 3;
+        min-height: 3;
+        margin-left: 1;
     }
 
     #status-panel {
@@ -131,8 +133,8 @@ class BackendTUI(App):
 
     .status-value-row {
         layout: horizontal;
-        align: left middle;
-        height: 3;
+        align: left top;
+        height: auto;
     }
 
     .status-value {
@@ -163,7 +165,8 @@ class BackendTUI(App):
 
     BINDINGS = [("q", "quit", "Quit")]
 
-    status_text: reactive[str] = reactive("Unknown")
+    proxy_text: reactive[str] = reactive("Unknown")
+    classifier_text: reactive[str] = reactive("Unknown")
     server_id: reactive[str] = reactive("")
     passcode: reactive[str] = reactive("")
 
@@ -182,7 +185,7 @@ class BackendTUI(App):
 
     @staticmethod
     def _config_widgets() -> ComposeResult:
-        yield Label("⚙️  Configuration", classes="panel-title")
+        yield Label("Configuration", classes="panel-title")
         with Horizontal(classes="row"):
             yield Label("Proxy URL", classes="input-label")
             yield Input(placeholder="http://example.com", id="input-proxy-url")
@@ -204,15 +207,18 @@ class BackendTUI(App):
 
     @staticmethod
     def _status_widgets() -> ComposeResult:
-        yield Label("Status", classes="panel-title")
-
         with Container(classes="status-card"):
-            yield Static("Connection", classes="status-card-label")
+            yield Static("Proxy Connection", classes="status-card-label")
             yield Static(
                 "Unknown",
-                id="status-display",
+                id="proxy-display",
                 classes="status-value status-pill-unknown",
             )
+
+        with Container(classes="status-card"):
+            yield Static("Classifier Connection", classes="status-card-label")
+            with Horizontal(classes="status-value-row"):
+                yield Static("—", id="classifier-display", classes="status-value")
 
         with Container(classes="status-card"):
             yield Static("Server ID", classes="status-card-label")
@@ -246,8 +252,13 @@ class BackendTUI(App):
         self.fetch_state_and_status()
         self.set_interval(5.0, self.fetch_status_only)
 
-    def watch_status_text(self, status: str) -> None:
-        widget = self.query_one("#status-display", Static)
+    def watch_proxy_text(self, status: str) -> None:
+        widget = self.query_one("#proxy-display", Static)
+        widget.update(status)
+        widget.set_classes(f"status-value {self._status_pill_class(status)}")
+
+    def watch_classifier_text(self, status: str) -> None:
+        widget = self.query_one("#classifier-display", Static)
         widget.update(status)
         widget.set_classes(f"status-value {self._status_pill_class(status)}")
 
@@ -262,9 +273,9 @@ class BackendTUI(App):
     @staticmethod
     def _status_pill_class(status: str) -> str:
         lowered = status.lower()
-        if "offline" in lowered or "error" in lowered:
+        if any(w in lowered for w in ["offline", "error", "failed", "disconnected"]):
             return "status-pill-offline"
-        if "online" in lowered or "connected" in lowered:
+        if any(w in lowered for w in ["online", "connected"]):
             return "status-pill-online"
         return "status-pill-unknown"
 
@@ -343,7 +354,7 @@ class BackendTUI(App):
                     self._apply_config_to_inputs(ConfigState.from_api(data))
                 await self.fetch_status_only()
         except httpx.ConnectError:
-            self.status_text = "Backend Offline"
+            self.proxy_text = "Backend Offline"
             self.log_message(
                 "Could not connect to backend. Is the FastAPI service running on port 8000?"
             )
@@ -356,11 +367,14 @@ class BackendTUI(App):
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 res = await client.get(f"{API_BASE}/status")
                 if res.status_code == 200:
+                    # TODO: add the classifier state here
                     data = res.json()
-                    self.status_text = data.get("status", "Unknown")
+                    self.proxy_text = data.get("status", "Unknown")
+                    self.classifier_text = data.get("classifier_status", "Unknown")
                     self.server_id = data.get("server_id", "")
         except httpx.ConnectError:
-            self.status_text = "Backend Offline"
+            self.proxy_text = "Backend Offline"
+            self.classifier_text = "Backend Offline"
         except Exception:
             pass
 
