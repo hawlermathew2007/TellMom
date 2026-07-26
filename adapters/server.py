@@ -1,7 +1,6 @@
 import subprocess
 import yaml
 import uvicorn
-from pathlib import Path
 from typing import Dict, Optional
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -11,10 +10,10 @@ from adapters.base import AdapterRegistry
 from adapters.minecraft.minecraft import plugin as minecraft_plugin
 from adapters.client import SecureProxyClient
 from backend.schemas.ingest import IngestRequest
+from adapters.config import CONFIG_FILE, BASE_DIR
 
-CONFIG_FILE = Path(__file__).resolve().parent / "config.yaml"
-BASE_DIR = Path(__file__).resolve().parent
 
+# Registering all the different modules
 registry = AdapterRegistry()
 registry.register(minecraft_plugin)
 
@@ -209,8 +208,8 @@ async def ingest_message(
 
 
 if __name__ == "__main__":
-    HOST = "127.0.0.1"
-    PORT = 8000
+    from adapters.config import HOST, PORT 
+
     URL = f"http://{HOST}:{PORT}"
     app.state.server_url = URL
     uvicorn.run("adapters.server:app", host=HOST, port=PORT, reload=False)

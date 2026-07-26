@@ -115,12 +115,11 @@ async def acknowledge_alert(
         )
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
-    
+
     if proxy_manager.agent:
-        await proxy_manager.agent._send_response({
-            "type": "chat_alert",
-            "data": alert_res.model_dump(mode="json")
-        })
+        await proxy_manager.agent._send_response(
+            {"type": "chat_alert", "data": alert_res.model_dump(mode="json")}
+        )
 
     return alert_res
 
@@ -145,7 +144,10 @@ async def get_grooming_analysis(
         raise HTTPException(status_code=404, detail="Alert not found")
 
     # Get incremental analysis
-    result = await get_incremental_analysis(db, alert)
+    try:
+        result = await get_incremental_analysis(db, alert)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=e)
 
     if result is None:
         # Analysis failed or threshold not met

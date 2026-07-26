@@ -3,8 +3,13 @@ import pathlib
 from dotenv import load_dotenv
 
 BASE = pathlib.Path(__file__).parent.parent.resolve()
-load_dotenv(BASE / ".env")
-load_dotenv()
+ENV_FILE = (
+    BASE / ".env" if pathlib.Path(BASE / ".env").exists() else BASE / ".env.example"
+)
+load_dotenv(ENV_FILE)
+
+HOST = os.getenv("HOST", "localhost")
+PORT = int(os.getenv("PORT", 8080))
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
 assert DATABASE_URL is not None

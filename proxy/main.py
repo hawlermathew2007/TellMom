@@ -77,5 +77,6 @@ app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend
 
 if __name__ == "__main__":
     import uvicorn
+    from proxy.core.config import HOST, PORT
 
-    uvicorn.run("proxy.main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("proxy.main:app", host=HOST, port=PORT, reload=True)

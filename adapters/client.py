@@ -19,7 +19,7 @@ from shared.services.security import (
     b64_to_int,
 )
 
-log = logging.getLogger("tellmom.client")
+logger = logging.getLogger(__name__)
 
 
 class SecureProxyClient:
@@ -69,7 +69,7 @@ class SecureProxyClient:
                 "client_dh_pubkey": int_to_b64(client_pub),
             },
         )
-        logging.getLogger(__name__).error(f"Debug statement: {response}")
+        logger.error(f"Debug statement: {response}")
         response.raise_for_status()
         data = response.json()
 
@@ -167,20 +167,20 @@ class IngestClient:
                 return
             except httpx.HTTPStatusError as exc:
                 if 400 <= exc.response.status_code < 500:
-                    log.error(
+                    logger.error(
                         "Backend rejected message (status %d): %s",
                         exc.response.status_code,
                         exc.response.text,
                     )
                     return
-                log.warning(
+                logger.warning(
                     "Server error sending message (attempt %d/%d): %s",
                     attempt,
                     max_retries,
                     exc,
                 )
             except httpx.HTTPError as exc:
-                log.warning(
+                logger.warning(
                     "Network error sending message (attempt %d/%d): %s",
                     attempt,
                     max_retries,
@@ -190,7 +190,7 @@ class IngestClient:
             if attempt < max_retries:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 30.0)
-        log.error("Giving up on message after %d attempts", max_retries)
+        logger.error("Giving up on message after %d attempts", max_retries)
 
     async def aclose(self) -> None:
         if self._client is not None:

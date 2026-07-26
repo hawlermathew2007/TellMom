@@ -5,7 +5,6 @@ import base64
 import json
 import logging
 import secrets
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -29,9 +28,9 @@ from shared.schemas.messages import (
     DhResponse,
 )
 from pydantic import BaseModel
+from backend.core.config import STATE_PATH, PROXY_URL, LOCAL_URL
 
 logger = logging.getLogger(__name__)
-STATE_PATH = Path(__file__).resolve().parent.parent / "backend_state.json"
 
 
 class ProxyAgent:
@@ -139,10 +138,10 @@ class ProxyAgent:
             self.status = "login_failed"
             self._stopped = True
             return
-        
+
         if self._stopped:
             return
-            
+
         try:
             await self.connect()
         except Exception as exc:
@@ -294,7 +293,9 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body=base64.urlsafe_b64encode(b"Provided sequence number does not match with expected value!").decode("ascii"),
+                    body=base64.urlsafe_b64encode(
+                        b"Provided sequence number does not match with expected value!"
+                    ).decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -303,7 +304,9 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body=base64.urlsafe_b64encode(f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!".encode()).decode("ascii"),
+                    body=base64.urlsafe_b64encode(
+                        f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!".encode()
+                    ).decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -312,7 +315,9 @@ class ProxyAgent:
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
                     status=400,
-                    body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
+                    body=base64.urlsafe_b64encode(
+                        b"User hasn't intitialized dh key exchange yet!"
+                    ).decode("ascii"),
                 )
                 await self._send_response(tunnel_resp)
                 return
@@ -336,7 +341,9 @@ class ProxyAgent:
             tunnel_resp = TunnelResponse(
                 request_id=request_id,
                 status=400,
-                body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
+                body=base64.urlsafe_b64encode(
+                    b"User hasn't intitialized dh key exchange yet!"
+                ).decode("ascii"),
             )
             await self._send_response(tunnel_resp)
             return
@@ -367,7 +374,9 @@ class ProxyAgent:
                     session_id=session_id,
                 )
                 resp_body_bytes = ciphertext.model_dump_json().encode()
-                resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode("ascii")
+                resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode(
+                    "ascii"
+                )
 
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
@@ -379,7 +388,9 @@ class ProxyAgent:
         except Exception as exc:
             logger.error("Failed to forward request %s: %s", request_id, exc)
             tunnel_resp = TunnelResponse(
-                request_id=request_id, status=502, body=base64.urlsafe_b64encode(f"Error: {exc}".encode()).decode("ascii")
+                request_id=request_id,
+                status=502,
+                body=base64.urlsafe_b64encode(f"Error: {exc}".encode()).decode("ascii"),
             )
             await self._send_response(tunnel_resp)
 
@@ -466,10 +477,10 @@ class ProxyState:
 
     def __init__(self) -> None:
         self.password_code = self._create_password_code()
-        self.proxy_url = ""
+        self.proxy_url = PROXY_URL
         self.username = ""
         self.password = ""
-        self.local_url = "http://127.0.0.1:8000"
+        self.local_url = LOCAL_URL
 
     @classmethod
     def current(cls) -> ProxyState:
@@ -499,17 +510,17 @@ class ProxyState:
             "proxy_url": getattr(instance, "proxy_url", ""),
             "username": getattr(instance, "username", ""),
             "password": getattr(instance, "password", ""),
-            "local_url": getattr(instance, "local_url", "http://127.0.0.1:8000"),
+            "local_url": getattr(instance, "local_url", LOCAL_URL),
         }
 
     @classmethod
     def deserialize(cls, data: dict[str, Any]) -> None:
         instance = cls.current()
         instance.password_code = data.get("password_code", instance.password_code)
-        instance.proxy_url = data.get("proxy_url", "")
+        instance.proxy_url = data.get("proxy_url", PROXY_URL)
         instance.username = data.get("username", "")
         instance.password = data.get("password", "")
-        instance.local_url = data.get("local_url", "http://127.0.0.1:8000")
+        instance.local_url = data.get("local_url", LOCAL_URL)
 
 
 def load_state() -> None:
