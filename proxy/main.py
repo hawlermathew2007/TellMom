@@ -3,6 +3,7 @@ import json
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 
 from proxy.core.config import CORS_ORIGINS
 from proxy.database.session import init_db
@@ -71,6 +72,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(session.router)
 app.include_router(router)
+
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn

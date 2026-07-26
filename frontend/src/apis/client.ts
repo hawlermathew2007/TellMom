@@ -9,6 +9,7 @@ let sessionId: string | null = localStorage.getItem(SESSION_ID_KEY);
 let token: string | null = localStorage.getItem(TOKEN_KEY);
 
 export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, forward: boolean = true): Promise<Response> => {
+  init = init ?? {};
   let urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   let sessionIdUsed = sessionId;
 
