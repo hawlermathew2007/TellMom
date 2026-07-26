@@ -1,6 +1,6 @@
 import base64
 import uuid
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request, WebSocket
 
 from fastapi.responses import Response
 

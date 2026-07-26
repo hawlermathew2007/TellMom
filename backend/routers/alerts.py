@@ -64,6 +64,7 @@ def list_alerts(
         alert_res = AlertResponse.model_validate(alert)
         alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
         response.append(alert_res)
+
     return response
 
 

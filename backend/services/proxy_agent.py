@@ -31,7 +31,6 @@ from shared.schemas.messages import (
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
 STATE_PATH = Path(__file__).resolve().parent.parent / "backend_state.json"
 
 
@@ -332,6 +331,15 @@ class ProxyAgent:
 
             finally:
                 state.sequence = state.sequence + 1
+
+        if state.aes_key is None or state.nonce_base is None:
+            tunnel_resp = TunnelResponse(
+                request_id=request_id,
+                status=400,
+                body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
+            )
+            await self._send_response(tunnel_resp)
+            return
 
         # Build the full path with query
         url = f"{self.local_url}{path}"
