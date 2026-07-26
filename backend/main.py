@@ -21,6 +21,15 @@ async def lifespan(_: FastAPI):
         getattr(state, "password", ""),
         getattr(state, "local_url", ""),
     )
+
+    try:
+        await proxy_manager.login()
+        await proxy_manager.connect()
+    except Exception as e:
+        logger.error(f"Auto-login failed: {e}")
+        proxy_manager.status = "Login/Connection Failed"
+        proxy_manager.agent = None
+
     try:
         await classifier_stream.ensure_connected()
         logger.debug("Classifier connected successfully")
