@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-env_file = ".env" if Path(BASE_DIR / ".env").exists() else ".env.example"
+env_file = BASE_DIR / ".env" if Path(BASE_DIR / ".env").exists() else BASE_DIR / ".env.example"
 load_dotenv(env_file)
 
 HOST = os.getenv("HOST", "localhost")

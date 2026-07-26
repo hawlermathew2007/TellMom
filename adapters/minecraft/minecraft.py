@@ -198,6 +198,7 @@ class MinecraftAdapter(BaseAdapter):
                 "server_id": "my-survival-server",
                 "poll_interval": 1.0,
                 "max_retries": 5,
+                "auto_start": False,
             },
             description="Tails a Minecraft log and forwards chat",
         )
@@ -205,7 +206,8 @@ class MinecraftAdapter(BaseAdapter):
     def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
         args = [
             sys.executable,
-            str(Path(__file__).resolve()),
+            "-m",
+            "adapters.minecraft.minecraft",
             "--log",
             str(config.get("log_path", "latest.log")),
             "--server-id",
