@@ -6,6 +6,7 @@ from textual.binding import Binding
 
 API_URL = "http://127.0.0.1:8000/api"
 
+
 class TellMomTUI(App):
     CSS = """
     #main_container {
@@ -34,7 +35,7 @@ class TellMomTUI(App):
         margin-right: 1;
     }
     """
-    
+
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("s", "start_adapter", "Start Adapter"),
@@ -54,9 +55,18 @@ class TellMomTUI(App):
             with Vertical(id="right_panel"):
                 yield Label("Connection to Remote Proxy", classes="header")
                 yield Label("Status: Checking...", id="conn_status")
-                yield Input(placeholder="Proxy URL", id="input_proxy_url", classes="input_row")
-                yield Input(placeholder="Server ID", id="input_server_id", classes="input_row")
-                yield Input(placeholder="Password Code", id="input_password", password=True, classes="input_row")
+                yield Input(
+                    placeholder="Proxy URL", id="input_proxy_url", classes="input_row"
+                )
+                yield Input(
+                    placeholder="Server ID", id="input_server_id", classes="input_row"
+                )
+                yield Input(
+                    placeholder="Password Code",
+                    id="input_password",
+                    password=True,
+                    classes="input_row",
+                )
                 with Horizontal():
                     yield Button("Connect", id="btn_connect", variant="success")
                     yield Button("Disconnect", id="btn_disconnect", variant="error")
@@ -78,26 +88,38 @@ class TellMomTUI(App):
                 row = table.cursor_coordinate.row
                 table.clear()
                 for adp in adapters:
-                    status = f"[green]{adp['status']}[/]" if adp["status"] == "RUNNING" else f"[red]{adp['status']}[/]"
-                    table.add_row(adp["name"], status, adp["description"], adp["server_id"])
+                    status = (
+                        f"[green]{adp['status']}[/]"
+                        if adp["status"] == "RUNNING"
+                        else f"[red]{adp['status']}[/]"
+                    )
+                    table.add_row(
+                        adp["name"], status, adp["description"], adp["server_id"]
+                    )
                 if row < table.row_count:
                     table.move_cursor(row=row)
-            
+
             # Update connection status
             resp = await self.client.get(f"{API_URL}/connection")
             if resp.status_code == 200:
                 conn = resp.json()
                 status_label = self.query_one("#conn_status", Label)
-                color = "green" if conn["status"] == "Connected" else "red" if "Error" in conn["status"] else "yellow"
+                color = (
+                    "green"
+                    if conn["status"] == "Connected"
+                    else "red"
+                    if "Error" in conn["status"]
+                    else "yellow"
+                )
                 status_label.update(f"Status: [{color}]{conn['status']}[/]")
-                
+
         except Exception as e:
             self.query_one(Log).write_line(f"Error fetching data: {e}")
 
     async def action_start_adapter(self) -> None:
         table = self.query_one(DataTable)
         log_panel = self.query_one(Log)
-        
+
         if table.row_count == 0:
             return
         try:
@@ -115,7 +137,7 @@ class TellMomTUI(App):
     async def action_stop_adapter(self) -> None:
         table = self.query_one(DataTable)
         log_panel = self.query_one(Log)
-        
+
         if table.row_count == 0:
             return
         try:
@@ -136,18 +158,21 @@ class TellMomTUI(App):
             proxy_url = self.query_one("#input_proxy_url", Input).value
             server_id = self.query_one("#input_server_id", Input).value
             password = self.query_one("#input_password", Input).value
-            
+
             if not proxy_url or not server_id or not password:
                 log_panel.write_line("Please fill all connection fields.")
                 return
-                
+
             log_panel.write_line("Connecting...")
             try:
-                resp = await self.client.post(f"{API_URL}/connection", json={
-                    "proxy_url": proxy_url,
-                    "server_id": server_id,
-                    "password_code": password
-                })
+                resp = await self.client.post(
+                    f"{API_URL}/connection",
+                    json={
+                        "proxy_url": proxy_url,
+                        "server_id": server_id,
+                        "password_code": password,
+                    },
+                )
                 if resp.status_code == 200:
                     log_panel.write_line("Connected successfully!")
                 else:
@@ -155,7 +180,7 @@ class TellMomTUI(App):
                 await self.update_data()
             except Exception as e:
                 log_panel.write_line(f"Connection error: {e}")
-                
+
         elif event.button.id == "btn_disconnect":
             try:
                 await self.client.post(f"{API_URL}/connection/disconnect")
@@ -163,6 +188,7 @@ class TellMomTUI(App):
                 await self.update_data()
             except Exception as e:
                 log_panel.write_line(f"Disconnect error: {e}")
+
 
 if __name__ == "__main__":
     app = TellMomTUI()

@@ -54,7 +54,7 @@ async def stream(websocket: WebSocket) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
-            await handle_server_message(raw)
+            await handle_server_message(server_id, raw)
     except WebSocketDisconnect:
         logger.info("Server websocket disconnected: %s", server_id)
     finally:

@@ -3,6 +3,7 @@ import json
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
+from backend.services.proxy_manager import proxy_manager
 from backend.database.models import Alert, Parent, ChatMessage, ChildAccount
 from backend.database.session import SessionLocal, get_db
 from backend.core.dependencies import get_current_parent
@@ -68,9 +69,8 @@ def list_alerts(
     return response
 
 
-# TODO: fix this one also, send the acknowledge to the server right after
 @router.patch("/{alert_id}/acknowledge", response_model=AlertResponse)
-def acknowledge_alert(
+async def acknowledge_alert(
     alert_id: int,
     parent: Parent = Depends(get_current_parent),
     db: Session = Depends(get_db),
@@ -92,7 +92,6 @@ def acknowledge_alert(
         db.query(ChildAccount).filter(ChildAccount.id == alert.child_account_id).first()
     )
 
-    # TODO: write the acknowledge to actually post to the main server
     if child is None:
         messages = (
             db.query(ChatMessage)
@@ -116,6 +115,13 @@ def acknowledge_alert(
         )
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
+    
+    if proxy_manager.agent:
+        await proxy_manager.agent._send_response({
+            "type": "chat_alert",
+            "data": alert_res.model_dump(mode="json")
+        })
+
     return alert_res
 
 
