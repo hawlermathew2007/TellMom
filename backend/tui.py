@@ -367,7 +367,6 @@ class BackendTUI(App):
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 res = await client.get(f"{API_BASE}/status")
                 if res.status_code == 200:
-                    # TODO: add the classifier state here
                     data = res.json()
                     self.proxy_text = data.get("status", "Unknown")
                     self.classifier_text = data.get("classifier_status", "Unknown")

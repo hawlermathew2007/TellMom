@@ -10,7 +10,6 @@ from backend.services.proxy_agent import load_state, ProxyState
 logger = logging.getLogger("uvicorn.error")
 
 
-# TODO: ensure autoconnection also
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
