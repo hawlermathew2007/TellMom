@@ -126,6 +126,17 @@ async def lifespan(app: FastAPI):
     URL = f"http://{HOST}:{PORT}"
     app.state.server = ServerState(URL)
 
+    server_config = load_server_config()
+    proxy_url = server_config.get("proxy_url")
+    server_id = server_config.get("server_id")
+    password_code = server_config.get("password_code")
+
+    if proxy_url and server_id and password_code:
+        try:
+            await app.state.server.connect(proxy_url, server_id, password_code)
+        except Exception as e:
+            print(f"Failed to auto-connect to proxy: {e}")
+
     config = load_config()
     for name, cfg in config.items():
         if cfg.get("auto_start"):
