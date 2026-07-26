@@ -1,0 +1,9 @@
+[package]
+name = "hawlermathew2007/TellMom"
+description = "Roblox chat adaptor for the TellMom cyber security LLM"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+cryptography = "daily3014/cryptography@3.1.1"

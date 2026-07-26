@@ -1,5 +1,6 @@
 # Roblox
 *.rbxlx
+adapters/roblox/Packages
 
 # Roblox Studio lock files
 *.rbxlx.lock

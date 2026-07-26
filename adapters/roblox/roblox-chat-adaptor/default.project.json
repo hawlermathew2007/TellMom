@@ -11,7 +11,10 @@
 
     "ReplicatedStorage": {
       "ChatGuard": {
-        "$path": "src/Template/ReplicatedStorage"
+        "$path": "src/Template/ReplicatedStorage",
+        "Packages": {
+          "$path": "../Packages" 
+        }
       }
     },
 
