@@ -17,6 +17,7 @@ from typing import Optional, Dict, Any
 
 import httpx
 from adapters.base import BaseAdapter
+from adapters.config import HOST, PORT
 
 
 logging.basicConfig(
@@ -145,7 +146,7 @@ async def send_with_retry(
 
 async def run(
     log_path: Path,
-    backend_url: str,
+    local_ingest_url: str,
     server_id: str,
     state_path: Path,
     poll_interval: float,
@@ -154,6 +155,14 @@ async def run(
     store = OffsetStore(state_path)
     tailer = LogTailer(log_path, start_offset=store.read_offset)
 
+    log.info(
+        "Configuration: %s (server id), %s (backend url), %s (state path), %s (poll interval), %s (max retries)",
+        server_id,
+        local_ingest_url,
+        state_path,
+        poll_interval,
+        max_retries,
+    )
     log.info("Watching %s (starting at offset %d)", log_path, store.read_offset)
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -178,7 +187,7 @@ async def run(
                     "message": msg.message,
                 }
 
-                await send_with_retry(client, backend_url, payload, max_retries)
+                await send_with_retry(client, local_ingest_url, payload, max_retries)
                 log.info("Sent <%s> %s", msg.username, msg.message)
 
                 store.last_sent_offset = offset_after
@@ -193,8 +202,8 @@ class MinecraftAdapter(BaseAdapter):
             name="minecraft",
             display_name="Minecraft Log Tailer",
             default_config={
-                "log_path": "latest.log",
-                "backend_url": "http://localhost:8000/ingest",
+                "log_path": "~/.minecraft/logs/latest.log",
+                "local_ingest_url": f"http://{HOST}:{PORT}/ingest",
                 "server_id": "my-survival-server",
                 "poll_interval": 1.0,
                 "max_retries": 5,
@@ -218,8 +227,8 @@ class MinecraftAdapter(BaseAdapter):
             str(config.get("max_retries", 5)),
         ]
 
-        backend_url = config.get("backend_url", "http://localhost:8000/ingest")
-        args.extend(["--backend-url", backend_url])
+        local_ingest_url = config.get("local_ingest_url", "http://localhost:8000/ingest")
+        args.extend(["--local-ingest-url", local_ingest_url])
 
         return subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
 
@@ -238,7 +247,7 @@ def main() -> None:
         help="Path to the Minecraft log file (e.g. latest.log)",
     )
     parser.add_argument(
-        "--backend-url",
+        "--local-ingest-url",
         required=True,
         help="Full URL of the /ingest endpoint",
     )
@@ -269,7 +278,7 @@ def main() -> None:
     asyncio.run(
         run(
             log_path=args.log,
-            backend_url=args.backend_url,
+            local_ingest_url=args.local_ingest_url,
             server_id=args.server_id,
             state_path=state_path,
             poll_interval=args.poll_interval,

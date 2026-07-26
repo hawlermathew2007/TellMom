@@ -49,5 +49,10 @@ app.include_router(management.router)
 if __name__ == "__main__":
     import uvicorn
     from backend.core.config import HOST, PORT
+    from argparse import ArgumentParser
 
-    uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=True)
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=args.reload)

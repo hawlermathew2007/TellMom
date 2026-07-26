@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import httpx
-from adapters.config import API_URL
+from adapters.config import API_URL, PROXY_URL
 from textual.app import App, ComposeResult
 from textual.widgets import (
     Header,
@@ -264,6 +264,7 @@ class TellMomTUI(App):
         self.client = httpx.AsyncClient(timeout=5.0)
         self.adapter_configs: dict[str, dict] = {}
         self.adapter_autostart: dict[str, bool] = {}
+        self.initial_config_loaded: bool = False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -284,7 +285,7 @@ class TellMomTUI(App):
                 yield Label("Connection to Remote Proxy", classes="section_header")
                 yield Label("Status: Checking...", id="conn_status")
                 yield Input(
-                    placeholder="Proxy URL", id="input_proxy_url", classes="input_row"
+                    value=PROXY_URL, placeholder="Proxy URL", id="input_proxy_url", classes="input_row"
                 )
                 yield Input(
                     placeholder="Server ID", id="input_server_id", classes="input_row"
@@ -369,6 +370,14 @@ class TellMomTUI(App):
                     else "yellow"
                 )
                 status_label.update(f"Status: [{color}]{conn['status']}[/]")
+
+                if not self.initial_config_loaded:
+                    saved_config = conn.get("saved_config", {})
+                    if saved_config:
+                        self.query_one("#input_proxy_url", Input).value = saved_config.get("proxy_url", PROXY_URL)
+                        self.query_one("#input_server_id", Input).value = saved_config.get("server_id", "")
+                        self.query_one("#input_password", Input).value = saved_config.get("password_code", "")
+                    self.initial_config_loaded = True
 
         except Exception as e:
             self.log_line(f"Error fetching data: {e}")

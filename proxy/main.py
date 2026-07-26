@@ -78,5 +78,9 @@ app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend
 if __name__ == "__main__":
     import uvicorn
     from proxy.core.config import HOST, PORT
+    from argparse import ArgumentParser
 
-    uvicorn.run("proxy.main:app", host=HOST, port=PORT, reload=True)
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+    uvicorn.run("proxy.main:app", host=HOST, port=PORT, reload=args.reload)

@@ -124,14 +124,14 @@ class SecureProxyClient:
 class IngestClient:
     def __init__(
         self,
-        backend_url: str | None,
+        local_ingest_url: str | None,
         server_id: str,
         proxy_url: str,
         timeout: float = 10.0,
         password_code: str | None = None,
         client_id: str | None = None,
     ):
-        self.backend_url = backend_url
+        self.local_ingest_url = local_ingest_url
         self.server_id = server_id
         self.proxy_url = proxy_url
         self.password_code = password_code or ""
@@ -147,15 +147,15 @@ class IngestClient:
             if proxy_url
             else None
         )
-        self._backend_client = httpx.AsyncClient(timeout=timeout)
+        self._local_ingest_client = httpx.AsyncClient(timeout=timeout)
 
     async def send(self, payload: dict) -> None:
         if self._client is not None:
             await self._client.send(payload)
             return
 
-        assert self.backend_url is not None
-        resp = await self._backend_client.post(self.backend_url, json=payload)
+        assert self.local_ingest_url is not None
+        resp = await self._local_ingest_client.post(self.local_ingest_url, json=payload)
         resp.raise_for_status()
 
     async def send_with_retry(self, payload: dict, max_retries: int = 5) -> None:
@@ -195,5 +195,5 @@ class IngestClient:
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()
-        if self._backend_client is not None:
-            await self._backend_client.aclose()
+        if self._local_ingest_client is not None:
+            await self._local_ingest_client.aclose()

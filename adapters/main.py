@@ -41,8 +41,8 @@ def load_config() -> Dict[str, dict]:
 class ServerState:
     """Holds all mutable runtime state for the app, replacing module-level globals."""
 
-    def __init__(self, backend_url: str) -> None:
-        self.backend_url = backend_url
+    def __init__(self, local_ingest_url: str) -> None:
+        self.local_ingest_url = local_ingest_url
         self.processes: Dict[str, subprocess.Popen] = {}
         self.proxy_client: Optional[SecureProxyClient] = None
         self.connection_info: Dict[str, Optional[str]] = {
@@ -62,7 +62,7 @@ class ServerState:
         log_file_path = BASE_DIR / "logs" / f"{name}_output.log"
         log_file_path.parent.mkdir(exist_ok=True, parents=True)
         log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
-        config["backend_url"] = self.backend_url
+        config["local_ingest_url"] = f"{self.local_ingest_url}/ingest"
         proc = adapter.launch(config, log_file)
         self.processes[name] = proc
 
@@ -211,11 +211,47 @@ class ConnectRequest(BaseModel):
     password_code: str
 
 
+def load_server_config() -> dict:
+    if CONFIG_FILE.exists():
+        try:
+            import yaml
+
+            with open(CONFIG_FILE, "r") as f:
+                user_cfg = yaml.safe_load(f)
+            if user_cfg and "server_config" in user_cfg:
+                return user_cfg["server_config"]
+        except Exception as e:
+            pass
+    return {}
+
+
+def save_server_config(proxy_url: str, server_id: str, password_code: str):
+    import yaml
+
+    user_cfg = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                user_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    user_cfg["server_config"] = {
+        "proxy_url": proxy_url,
+        "server_id": server_id,
+        "password_code": password_code,
+    }
+
+    with open(CONFIG_FILE, "w") as f:
+        yaml.safe_dump(user_cfg, f)
+
+
 @app.post("/api/connection")
 async def connect_proxy(req: ConnectRequest, request: Request):
     state = get_state(request)
     try:
         await state.connect(req.proxy_url, req.server_id, req.password_code)
+        save_server_config(req.proxy_url, req.server_id, req.password_code)
         return {"status": "connected"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -223,7 +259,9 @@ async def connect_proxy(req: ConnectRequest, request: Request):
 
 @app.get("/api/connection")
 def get_connection(request: Request):
-    return get_state(request).connection_info
+    info = get_state(request).connection_info.copy()
+    info["saved_config"] = load_server_config()
+    return info
 
 
 @app.post("/api/connection/disconnect")
@@ -243,4 +281,10 @@ async def ingest_message(
 
 
 if __name__ == "__main__":
-    uvicorn.run("adapters.server:app", host=HOST, port=PORT, reload=True)
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run("adapters.main:app", host=HOST, port=PORT, reload=args.reload)

@@ -29,7 +29,7 @@ class DiscordAdapter(BaseAdapter):
             display_name="Discord Bot",
             default_config={
                 "bot_token": "",
-                "backend_url": "http://localhost:8000/ingest",
+                "local_ingest_url": "http://localhost:8000/ingest",
                 "server_id": "my-discord-server",
                 "auto_start": False,
             },
@@ -45,8 +45,8 @@ class DiscordAdapter(BaseAdapter):
             str(config.get("bot_token", "")),
             "--server-id",
             str(config.get("server_id", "my-discord-server")),
-            "--backend-url",
-            str(config.get("backend_url", "http://localhost:8000/ingest")),
+            "--local-ingest-url",
+            str(config.get("local_ingest_url", "http://localhost:8000/ingest")),
         ]
 
         return subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
@@ -55,7 +55,7 @@ class DiscordAdapter(BaseAdapter):
 plugin = DiscordAdapter()
 
 
-def run_bot(bot_token: str, backend_url: str, default_server_id: str):
+def run_bot(bot_token: str, local_ingest_url: str, default_server_id: str):
     intents = discord.Intents.default()
     intents.message_content = True
 
@@ -64,7 +64,7 @@ def run_bot(bot_token: str, backend_url: str, default_server_id: str):
     @client.event
     async def on_ready():
         log.info(f"Logged in as Discord Bot: {client.user} (ID: {client.user.id})")
-        log.info(f"Ingesting chats to TellMom API at: {backend_url}")
+        log.info(f"Ingesting chats to TellMom API at: {local_ingest_url}")
         log.info("Ready and listening for messages...")
 
     @client.event
@@ -88,7 +88,7 @@ def run_bot(bot_token: str, backend_url: str, default_server_id: str):
 
         try:
             async with httpx.AsyncClient() as http_client:
-                response = await http_client.post(backend_url, json=payload)
+                response = await http_client.post(local_ingest_url, json=payload)
                 if response.status_code in (200, 204, 201):
                     log.info(
                         f"Successfully ingested message from {message.author} "
@@ -109,7 +109,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the TellMom Discord Bot Adapter")
     parser.add_argument("--bot-token", required=True, help="Discord Bot Token")
     parser.add_argument(
-        "--backend-url", required=True, help="Full URL of the /ingest endpoint"
+        "--local-ingest-url", required=True, help="Full URL of the /ingest endpoint"
     )
     parser.add_argument(
         "--server-id", required=True, help="Default identifier for this server"
@@ -123,7 +123,7 @@ def main() -> None:
 
     run_bot(
         bot_token=args.bot_token,
-        backend_url=args.backend_url,
+        local_ingest_url=args.local_ingest_url,
         default_server_id=args.server_id,
     )
 
