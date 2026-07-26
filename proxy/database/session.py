@@ -22,6 +22,13 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def reset_db_url(url: str):
+    global engine, SessionLocal
+    engine.dispose()
+    engine = create_engine(url, pool_pre_ping=True)
+    SessionLocal.configure(bind=engine)
+
+
 def init_db() -> None:
     from proxy.database import models  # noqa: F401
 

@@ -10,8 +10,6 @@ from backend.schemas.ingest import IngestRequest
 from proxy.database.session import init_db as proxy_init_db
 from backend.database.session import init_db as backend_init_db
 from backend.services.proxy_agent import ProxyAgent, ProxyState
-from shared.schemas.tunnel import EncryptedMessage
-from shared.services import security as sec
 
 
 def _wait_server(url: str):
@@ -68,8 +66,17 @@ def test_full_proxy_roundtrip(servers, postgres) -> None:
     b_thread, b_server = _start_server("backend.main:app", host=B_HOST, port=B_PORT)
     servers.append((b_thread, b_server))
 
+    A_HOST, A_PORT = "localhost", 8001
+    A_URL = f"http://{A_HOST}:{A_PORT}"
+    from adapters.server import app
+
+    app.state.server_url = A_URL
+    a_thread, a_server = _start_server("adapters.server:app", host=A_HOST, port=A_PORT)
+    servers.append((a_thread, a_server))
+
     _wait_server(P_URL)
     _wait_server(B_URL)
+    _wait_server(A_URL)
 
     async def scenario() -> None:
         agent = ProxyAgent(P_URL, "integration-server", "pass", B_URL)
@@ -80,74 +87,29 @@ def test_full_proxy_roundtrip(servers, postgres) -> None:
         ProxyState.current().password_code = "secret"
 
         async with httpx.AsyncClient() as client:
-            # associate (client -> proxy -> backend)
-            # TODO: make the user register to associate also
+            # Connecting the adapter server to the proxy server
             resp = await client.post(
-                P_URL + "/session/associate",
+                A_URL + "/api/connection",
                 json={
+                    "proxy_url": P_URL,
                     "server_id": agent.server_id,
                     "password_code": "secret",
-                    "client_id": "client-1",
                 },
             )
             assert resp.status_code == 200
-            data = resp.json()
-            session_id = data.get("session_id")
-            assert session_id
-
-            # key exchange: client generates DH key and sends public
-            client_priv = sec.generate_dh_private_key()
-            client_pub = sec.derive_dh_public_key(client_priv)
-            resp = await client.post(
-                P_URL + "/session/key-exchange",
-                json={
-                    "session_id": session_id,
-                    "client_dh_pubkey": sec.int_to_b64(client_pub),
-                },
-            )
-            assert resp.status_code == 200
-            server_pub_b64 = resp.json().get("server_dh_pubkey")
-            assert server_pub_b64
-
-            # These should oly be calculated once and saved and reused
-            server_pub = sec.b64_to_int(server_pub_b64)
-            shared = sec.derive_shared_secret(client_priv, server_pub)
-            aes_key, nonce_base, _ = sec.derive_session_keys(shared)
-
-            # Dummy sequence
-            sequence = 1
 
             payload = IngestRequest(
                 platform=ChatPlatform.DISCORD,
                 user_id="user-1",
                 server_id="server-1",
-                message="hello tunnel full flow",
+                message="hello tunnel adapter",
             )
-
-            encrypted_body = sec.encrypt_message(
-                sequence=sequence,
-                aes_key=aes_key,
-                nonce_base=nonce_base,
-                plaintext=payload.model_dump_json(),
-                session_id=session_id,
-            ).model_dump_json()
-
             resp = await client.post(
-                P_URL + f"/session/{session_id}/forward/message/ingest",
-                content=encrypted_body,
+                A_URL + "/ingest",
+                content=payload.model_dump_json(),
                 headers={"content-type": "application/json"},
             )
-            assert resp.status_code == 204
-
-            resp_enc_msg = EncryptedMessage.model_validate(resp.json())
-            decrypted_bytes = sec.decrypt_message(
-                aes_key=aes_key,
-                nonce_base=nonce_base,
-                encrypted_message=resp_enc_msg,
-                aad=f"{session_id}:{sequence + 1}".encode(),
-            )
-            # The ingest endpoint returns 204 No Content with empty body
-            assert decrypted_bytes == b""
+            assert resp.status_code == 200
 
     # run async scenario
     asyncio.run(scenario())

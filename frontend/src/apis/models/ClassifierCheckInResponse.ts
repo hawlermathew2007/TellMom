@@ -14,6 +14,14 @@
  */
 
 import { mapValues } from '../runtime';
+import type { ResponseStatus } from './ResponseStatus';
+import {
+    ResponseStatusFromJSON,
+    ResponseStatusFromJSONTyped,
+    ResponseStatusToJSON,
+    ResponseStatusToJSONTyped,
+} from './ResponseStatus';
+
 /**
  * 
  * @export
@@ -22,10 +30,10 @@ import { mapValues } from '../runtime';
 export interface ClassifierCheckInResponse {
     /**
      * 
-     * @type {ClassifierCheckInResponseStatusEnum}
+     * @type {ResponseStatus}
      * @memberof ClassifierCheckInResponse
      */
-    status?: ClassifierCheckInResponseStatusEnum;
+    status: ResponseStatus;
     /**
      * 
      * @type {string}
@@ -41,19 +49,12 @@ export interface ClassifierCheckInResponse {
 }
 
 
-/**
- * @export
- */
-export const ClassifierCheckInResponseStatusEnum = {
-    Ok: 'ok'
-} as const;
-export type ClassifierCheckInResponseStatusEnum = typeof ClassifierCheckInResponseStatusEnum[keyof typeof ClassifierCheckInResponseStatusEnum];
-
 
 /**
  * Check if a given object implements the ClassifierCheckInResponse interface.
  */
 export function instanceOfClassifierCheckInResponse(value: object): value is ClassifierCheckInResponse {
+    if (!('status' in value) || value['status'] === undefined) return false;
     if (!('token' in value) || value['token'] === undefined) return false;
     return true;
 }
@@ -68,7 +69,7 @@ export function ClassifierCheckInResponseFromJSONTyped(json: any, ignoreDiscrimi
     }
     return {
         
-        'status': json['status'] == null ? undefined : json['status'],
+        'status': ResponseStatusFromJSON(json['status']),
         'message': json['message'] == null ? undefined : json['message'],
         'token': json['token'],
     };
@@ -85,7 +86,7 @@ export function ClassifierCheckInResponseToJSONTyped(value?: ClassifierCheckInRe
 
     return {
         
-        'status': value['status'],
+        'status': ResponseStatusToJSON(value['status']),
         'message': value['message'],
         'token': value['token'],
     };

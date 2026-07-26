@@ -40,11 +40,11 @@ import {
     TokenResponseToJSON,
 } from '../models/TokenResponse';
 
-export interface LoginParentApiAuthLoginPostRequest {
+export interface LoginParentAuthLoginPostRequest {
     parentLogin: ParentLogin;
 }
 
-export interface RegisterParentApiAuthRegisterPostRequest {
+export interface RegisterParentAuthRegisterPostRequest {
     parentRegister: ParentRegister;
 }
 
@@ -54,9 +54,9 @@ export interface RegisterParentApiAuthRegisterPostRequest {
 export class AuthApi extends runtime.BaseAPI {
 
     /**
-     * Creates request options for getMeApiAuthMeGet without sending the request
+     * Creates request options for getMeAuthMeGet without sending the request
      */
-    async getMeApiAuthMeGetRequestOpts(): Promise<runtime.RequestOpts> {
+    async getMeAuthMeGetRequestOpts(): Promise<runtime.RequestOpts> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -70,7 +70,7 @@ export class AuthApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/auth/me`;
+        let urlPath = `/auth/me`;
 
         return {
             path: urlPath,
@@ -83,8 +83,8 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Get Me
      */
-    async getMeApiAuthMeGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ParentResponse>> {
-        const requestOptions = await this.getMeApiAuthMeGetRequestOpts();
+    async getMeAuthMeGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ParentResponse>> {
+        const requestOptions = await this.getMeAuthMeGetRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ParentResponseFromJSON(jsonValue));
@@ -93,19 +93,19 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Get Me
      */
-    async getMeApiAuthMeGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ParentResponse> {
-        const response = await this.getMeApiAuthMeGetRaw(initOverrides);
+    async getMeAuthMeGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ParentResponse> {
+        const response = await this.getMeAuthMeGetRaw(initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for loginParentApiAuthLoginPost without sending the request
+     * Creates request options for loginParentAuthLoginPost without sending the request
      */
-    async loginParentApiAuthLoginPostRequestOpts(requestParameters: LoginParentApiAuthLoginPostRequest): Promise<runtime.RequestOpts> {
+    async loginParentAuthLoginPostRequestOpts(requestParameters: LoginParentAuthLoginPostRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['parentLogin'] == null) {
             throw new runtime.RequiredError(
                 'parentLogin',
-                'Required parameter "parentLogin" was null or undefined when calling loginParentApiAuthLoginPost().'
+                'Required parameter "parentLogin" was null or undefined when calling loginParentAuthLoginPost().'
             );
         }
 
@@ -116,7 +116,7 @@ export class AuthApi extends runtime.BaseAPI {
         headerParameters['Content-Type'] = 'application/json';
 
 
-        let urlPath = `/api/auth/login`;
+        let urlPath = `/auth/login`;
 
         return {
             path: urlPath,
@@ -130,8 +130,8 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Login Parent
      */
-    async loginParentApiAuthLoginPostRaw(requestParameters: LoginParentApiAuthLoginPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<TokenResponse>> {
-        const requestOptions = await this.loginParentApiAuthLoginPostRequestOpts(requestParameters);
+    async loginParentAuthLoginPostRaw(requestParameters: LoginParentAuthLoginPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<TokenResponse>> {
+        const requestOptions = await this.loginParentAuthLoginPostRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => TokenResponseFromJSON(jsonValue));
@@ -140,19 +140,19 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Login Parent
      */
-    async loginParentApiAuthLoginPost(requestParameters: LoginParentApiAuthLoginPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<TokenResponse> {
-        const response = await this.loginParentApiAuthLoginPostRaw(requestParameters, initOverrides);
+    async loginParentAuthLoginPost(requestParameters: LoginParentAuthLoginPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<TokenResponse> {
+        const response = await this.loginParentAuthLoginPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for registerParentApiAuthRegisterPost without sending the request
+     * Creates request options for registerParentAuthRegisterPost without sending the request
      */
-    async registerParentApiAuthRegisterPostRequestOpts(requestParameters: RegisterParentApiAuthRegisterPostRequest): Promise<runtime.RequestOpts> {
+    async registerParentAuthRegisterPostRequestOpts(requestParameters: RegisterParentAuthRegisterPostRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['parentRegister'] == null) {
             throw new runtime.RequiredError(
                 'parentRegister',
-                'Required parameter "parentRegister" was null or undefined when calling registerParentApiAuthRegisterPost().'
+                'Required parameter "parentRegister" was null or undefined when calling registerParentAuthRegisterPost().'
             );
         }
 
@@ -163,7 +163,7 @@ export class AuthApi extends runtime.BaseAPI {
         headerParameters['Content-Type'] = 'application/json';
 
 
-        let urlPath = `/api/auth/register`;
+        let urlPath = `/auth/register`;
 
         return {
             path: urlPath,
@@ -177,8 +177,8 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Register Parent
      */
-    async registerParentApiAuthRegisterPostRaw(requestParameters: RegisterParentApiAuthRegisterPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ParentResponse>> {
-        const requestOptions = await this.registerParentApiAuthRegisterPostRequestOpts(requestParameters);
+    async registerParentAuthRegisterPostRaw(requestParameters: RegisterParentAuthRegisterPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ParentResponse>> {
+        const requestOptions = await this.registerParentAuthRegisterPostRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ParentResponseFromJSON(jsonValue));
@@ -187,8 +187,8 @@ export class AuthApi extends runtime.BaseAPI {
     /**
      * Register Parent
      */
-    async registerParentApiAuthRegisterPost(requestParameters: RegisterParentApiAuthRegisterPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ParentResponse> {
-        const response = await this.registerParentApiAuthRegisterPostRaw(requestParameters, initOverrides);
+    async registerParentAuthRegisterPost(requestParameters: RegisterParentAuthRegisterPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ParentResponse> {
+        const response = await this.registerParentAuthRegisterPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

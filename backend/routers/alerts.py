@@ -1,3 +1,4 @@
+import logging
 import json
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -12,6 +13,7 @@ from backend.services.notifications import alert_manager
 from backend.services.explanation import get_incremental_analysis
 from backend.core.jwt import decode_stream_token
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
@@ -62,11 +64,12 @@ def list_alerts(
         alert_res = AlertResponse.model_validate(alert)
         alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
         response.append(alert_res)
+
     return response
 
 
 # TODO: fix this one also, send the acknowledge to the server right after
-@router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
+@router.patch("/{alert_id}/acknowledge", response_model=AlertResponse)
 def acknowledge_alert(
     alert_id: int,
     parent: Parent = Depends(get_current_parent),
@@ -86,11 +89,10 @@ def acknowledge_alert(
 
     # Return only the two-party conversation for the acknowledged alert
     child = (
-        db.query(ChildAccount)
-        .filter(ChildAccount.id == alert.child_account_id)
-        .first()
+        db.query(ChildAccount).filter(ChildAccount.id == alert.child_account_id).first()
     )
 
+    # TODO: write the acknowledge to actually post to the main server
     if child is None:
         messages = (
             db.query(ChatMessage)
@@ -160,9 +162,10 @@ async def alerts_websocket(websocket: WebSocket) -> None:
         return
 
     try:
-        _ = decode_stream_token(token)
-    except HTTPException:
+        _ = decode_stream_token(token, scope=False)
+    except HTTPException as e:
         await websocket.close(code=4401)
+        logger.error(f"Authorization error: {e}")
         return
 
     # Let the server know that authentication done

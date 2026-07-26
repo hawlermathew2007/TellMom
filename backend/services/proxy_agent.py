@@ -23,7 +23,6 @@ from shared.services.security import (
     int_to_b64,
     encrypt_message,
     decrypt_message,
-    xor_nonce,
 )
 from shared.schemas.messages import (
     AuthResponse,
@@ -32,7 +31,6 @@ from shared.schemas.messages import (
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
 STATE_PATH = Path(__file__).resolve().parent.parent / "backend_state.json"
 
 
@@ -46,6 +44,17 @@ class ProxyAgent:
         self.access_token: str | None = None
         self.websocket: websockets.ClientConnection | None = None
         self.session_states: dict[str, SessionState] = {}
+        self.active_ws: dict[str, websockets.ClientConnection] = {}
+        self.status = "disconnected"
+        self._stopped = False
+
+    async def stop(self) -> None:
+        self._stopped = True
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception:
+                pass
 
     async def register(self) -> None:
         async with httpx.AsyncClient() as client:
@@ -64,7 +73,7 @@ class ProxyAgent:
     async def login(self) -> None:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.proxy_url}/login",
+                f"{self.proxy_url}/auth/login",
                 json={"username": self.username, "password": self.password},
                 timeout=15.0,
             )
@@ -79,21 +88,27 @@ class ProxyAgent:
         if not self.access_token or not self.server_id:
             raise RuntimeError("Proxy agent is not registered or logged in")
 
+        self.status = "connecting"
         ws_url = (
             self.proxy_url.replace("http://", "ws://").replace("https://", "wss://")
             + "/stream"
         )
-        self.websocket = await websockets.connect(ws_url)
-        await self.websocket.send(
-            json.dumps({"type": "auth", "token": self.access_token})
-        )
-        raw = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
-        message = json.loads(raw)
-        if message.get("type") != ResponseStatus.SUCCESS.value:
-            raise RuntimeError("Proxy did not accept websocket authentication")
+        try:
+            self.websocket = await websockets.connect(ws_url)
+            await self.websocket.send(
+                json.dumps({"type": "auth", "token": self.access_token})
+            )
+            raw = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+            message = json.loads(raw)
+            if message.get("type") != ResponseStatus.SUCCESS.value:
+                raise RuntimeError("Proxy did not accept websocket authentication")
 
-        logger.info("Connected websocket to proxy for server %s", self.server_id)
-        asyncio.create_task(self._listen_loop())
+            self.status = "connected"
+            logger.info("Connected websocket to proxy for server %s", self.server_id)
+            asyncio.create_task(self._listen_loop())
+        except Exception:
+            self.status = "disconnected"
+            raise
 
     async def _listen_loop(self) -> None:
         assert self.websocket is not None
@@ -104,16 +119,60 @@ class ProxyAgent:
             logger.error("Proxy websocket listener stopped: %s", exc)
         finally:
             self.websocket = None
+            self.status = "disconnected"
+            if not self._stopped:
+                asyncio.create_task(self._reconnect())
+
+    async def _reconnect(self) -> None:
+        if self._stopped:
+            return
+        await asyncio.sleep(5)
+        if self._stopped or self.websocket is not None:
+            return
+
+        logger.info("Attempting to auto-reconnect to proxy...")
+        self.status = "reconnecting"
+        try:
+            await self.login()
+        except Exception as exc:
+            logger.error("Auto-reconnect login failed: %s", exc)
+            self.status = "login_failed"
+            self._stopped = True
+            return
+        
+        if self._stopped:
+            return
+            
+        try:
+            await self.connect()
+        except Exception as exc:
+            logger.error("Auto-reconnect connect failed: %s", exc)
+            self.status = "disconnected"
+            asyncio.create_task(self._reconnect())
 
     async def _handle_proxy_request(self, message: dict[str, Any]) -> None:
         message_type = message.get("type")
+
+        # TODO: change these with enums like below
+        if message_type == "ws_open":
+            asyncio.create_task(self._handle_ws_open(message))
+            return
+
+        if message_type == "ws_frame":
+            asyncio.create_task(self._handle_ws_frame(message))
+            return
+
+        if message_type == "ws_close":
+            asyncio.create_task(self._handle_ws_close(message))
+            return
+
         request_id = message.get("request_id")
         if request_id is None:
             logger.warning("Proxy request missing request_id: %s", message)
             return
 
         handlers: dict[str, Any] = {
-            TunnelRequestTypes.ASSOCIATE.value: self._handle_auth_request,
+            TunnelRequestTypes.ASSOCIATE.value: self._handle_associate_request,
             TunnelRequestTypes.KEY_EXCHANGE.value: self._handle_dh_request,
             TunnelRequestTypes.FORWARD.value: self._handle_forward_request,
         }
@@ -135,8 +194,82 @@ class ProxyAgent:
                 exc,
             )
 
-    # TODO: move the protocol to a share folder, apply the generic protocol handler for both the proxy server
-    # and the potential future clients that might need it
+    async def _handle_ws_open(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        path = message.get("path", "/")
+        if not connection_id:
+            return
+
+        # convert http url to a ws url instead
+        base_ws_url = self.local_url.replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
+        ws_url = f"{base_ws_url}{path}"
+
+        try:
+            ws = await websockets.connect(ws_url)
+            self.active_ws[connection_id] = ws
+            asyncio.create_task(self._ws_listen_loop(connection_id, ws))
+        except Exception as exc:
+            logger.error("Failed to connect ws to local backend: %s", exc)
+            await self._send_response(
+                {"type": "ws_close", "connection_id": connection_id, "code": 1011}
+            )
+
+    async def _ws_listen_loop(
+        self, connection_id: str, ws: websockets.ClientConnection
+    ) -> None:
+        try:
+            async for msg in ws:
+                # Determine and encode based on whether payload is string or byte
+                is_str = isinstance(msg, str)
+                await self._send_response(
+                    {
+                        "type": "ws_frame",
+                        "connection_id": connection_id,
+                        "opcode": "text" if is_str else "binary",
+                        "data": msg
+                        if is_str
+                        else base64.urlsafe_b64encode(msg).decode("ascii"),
+                    }
+                )
+        except Exception as exc:
+            logger.error("WS %s closed: %s", connection_id, exc)
+        finally:
+            self.active_ws.pop(connection_id, None)
+            await self._send_response(
+                {"type": "ws_close", "connection_id": connection_id, "code": 1000}
+            )
+
+    async def _handle_ws_frame(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        ws = self.active_ws.get(connection_id) if connection_id else None
+        if not ws:
+            return
+
+        opcode = message.get("opcode")
+        data = message.get("data", "")
+        try:
+            if opcode == "text":
+                await ws.send(data)
+            elif opcode == "binary":
+                await ws.send(base64.urlsafe_b64decode(data))
+        except Exception as exc:
+            logger.error("Failed to send ws frame: %s", exc)
+
+    async def _handle_ws_close(self, message: dict[str, Any]) -> None:
+        connection_id = message.get("connection_id")
+        ws = self.active_ws.get(connection_id) if connection_id else None
+        if ws:
+            try:
+                code = message.get("code", 1000)
+                await ws.close(code=code)
+            except Exception:
+                pass
+            finally:
+                if connection_id:
+                    self.active_ws.pop(connection_id, None)
+
     async def _handle_forward_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message["session_id"]
@@ -150,48 +283,63 @@ class ProxyAgent:
         body_b64 = message.get("body", "")
 
         state = self.session_states.get(session_id) if session_id else None
-        body_bytes = base64.b64decode(body_b64) if body_b64 else b""
+        assert state is not None
+        body_bytes = base64.urlsafe_b64decode(body_b64) if body_b64 else b""
 
         body = body_bytes.decode()
-        msg = EncryptedMessage.model_validate_json(body)
+        if method in ["POST", "PUT", "PATCH"]:
+            msg = EncryptedMessage.model_validate_json(body)
 
-        if state is None:
-            tunnel_resp = TunnelResponse(
-                request_id=request_id,
-                status=400,
-                body="Provided sequence number does not match with expected value!",
-            )
-            await self._send_response(tunnel_resp)
-            return
+            if state is None:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body=base64.urlsafe_b64encode(b"Provided sequence number does not match with expected value!").decode("ascii"),
+                )
+                await self._send_response(tunnel_resp)
+                return
 
-        if state.sequence != msg.sequence:
-            tunnel_resp = TunnelResponse(
-                request_id=request_id,
-                status=400,
-                body=f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!",
-            )
-            await self._send_response(tunnel_resp)
-            return
+            if state.sequence != msg.sequence:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body=base64.urlsafe_b64encode(f"Provided sequence number does not match with expected value {state.sequence} != {msg.sequence}!".encode()).decode("ascii"),
+                )
+                await self._send_response(tunnel_resp)
+                return
+
+            if state.aes_key is None or state.nonce_base is None:
+                tunnel_resp = TunnelResponse(
+                    request_id=request_id,
+                    status=400,
+                    body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
+                )
+                await self._send_response(tunnel_resp)
+                return
+
+            try:
+                aad = f"{session_id}:{state.sequence}".encode()
+                body_bytes = decrypt_message(
+                    aes_key=state.aes_key,
+                    nonce_base=state.nonce_base,
+                    encrypted_message=msg,
+                    aad=aad,
+                )
+
+            except Exception as e:
+                logger.error("Failed to decrypt forward request: %s", e)
+
+            finally:
+                state.sequence = state.sequence + 1
 
         if state.aes_key is None or state.nonce_base is None:
             tunnel_resp = TunnelResponse(
                 request_id=request_id,
                 status=400,
-                body="User hasn't intitialized dh key exchange yet!",
+                body=base64.urlsafe_b64encode(b"User hasn't intitialized dh key exchange yet!").decode("ascii"),
             )
             await self._send_response(tunnel_resp)
             return
-
-        try:
-            aad = f"{session_id}:{state.sequence}".encode()
-            body_bytes = decrypt_message(
-                aes_key=state.aes_key,
-                nonce_base=state.nonce_base,
-                encrypted_message=msg,
-                aad=aad,
-            )
-        except Exception as e:
-            logger.error("Failed to decrypt forward request: %s", e)
 
         # Build the full path with query
         url = f"{self.local_url}{path}"
@@ -211,7 +359,6 @@ class ProxyAgent:
                 resp_body = resp.content.decode()
                 resp_status = resp.status_code
 
-                state.sequence = state.sequence + 1
                 ciphertext = encrypt_message(
                     sequence=state.sequence,
                     aes_key=state.aes_key,
@@ -220,8 +367,7 @@ class ProxyAgent:
                     session_id=session_id,
                 )
                 resp_body_bytes = ciphertext.model_dump_json().encode()
-                resp_body_b64 = base64.b64encode(resp_body_bytes).decode("ascii")
-                resp_status = 200
+                resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode("ascii")
 
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
@@ -233,11 +379,11 @@ class ProxyAgent:
         except Exception as exc:
             logger.error("Failed to forward request %s: %s", request_id, exc)
             tunnel_resp = TunnelResponse(
-                request_id=request_id, status=502, body=f"Error: {exc}"
+                request_id=request_id, status=502, body=base64.urlsafe_b64encode(f"Error: {exc}".encode()).decode("ascii")
             )
             await self._send_response(tunnel_resp)
 
-    async def _handle_auth_request(self, message: dict[str, Any]) -> None:
+    async def _handle_associate_request(self, message: dict[str, Any]) -> None:
         request_id = message["request_id"]
         session_id = message.get("session_id") or ""
 
@@ -320,6 +466,10 @@ class ProxyState:
 
     def __init__(self) -> None:
         self.password_code = self._create_password_code()
+        self.proxy_url = ""
+        self.username = ""
+        self.password = ""
+        self.local_url = "http://127.0.0.1:8000"
 
     @classmethod
     def current(cls) -> ProxyState:
@@ -344,12 +494,22 @@ class ProxyState:
     @classmethod
     def serialize(cls) -> dict[str, Any]:
         instance = cls.current()
-        return {"password_code": instance.password_code}
+        return {
+            "password_code": instance.password_code,
+            "proxy_url": getattr(instance, "proxy_url", ""),
+            "username": getattr(instance, "username", ""),
+            "password": getattr(instance, "password", ""),
+            "local_url": getattr(instance, "local_url", "http://127.0.0.1:8000"),
+        }
 
     @classmethod
     def deserialize(cls, data: dict[str, Any]) -> None:
         instance = cls.current()
         instance.password_code = data.get("password_code", instance.password_code)
+        instance.proxy_url = data.get("proxy_url", "")
+        instance.username = data.get("username", "")
+        instance.password = data.get("password", "")
+        instance.local_url = data.get("local_url", "http://127.0.0.1:8000")
 
 
 def load_state() -> None:

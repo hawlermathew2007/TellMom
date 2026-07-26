@@ -45,7 +45,7 @@ class GroomingDetector:
         self.scaler = joblib.load(scaler_path)
         self.clf = joblib.load(classifier_path)
 
-    # TODO: expand this to do batch inference later
+    # TODO: expand this to do batch inference later, in case user wants to do their own hosting
     def predict(self, text: str) -> Tuple[int, float]:
         # NOTE: encoder accepts a list of string, allowing for batching
         emb = self.encoder.encode(

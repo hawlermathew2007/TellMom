@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getApis, getToken, clearToken, fetchAlerts, acknowledgeAlertWithExplanation } from "./apis/client";
+import { getApis, getToken, getSessionId, clearToken } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
-import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
+import { AlertWithExplanation, parseAlert, parseAlerts } from "./lib/parseAlert";
 import { useSettings } from "./hooks/useSettings";
 import { playAlertSound } from "./lib/sound";
 
@@ -13,12 +13,14 @@ import AlertDetailView from "./features/alerts/AlertDetailView";
 import ChildrenManagement from "./features/children/ChildrenManagement";
 import TestChatRoom from "./features/debug/TestChatRoom";
 import SettingsView from "./components/SettingsView";
+import ConnectPage from "./features/auth/ConnectPage";
 import AuthPage from "./features/auth/AuthPage";
 import ToastNotification, { ToastItem } from "./components/ToastNotification";
 import { LoadingSpinner, ErrorFallback } from "./components/SkeletonLoader";
 
 export default function App() {
     // Session & Authentication
+    const [sessionId, setSessionIdState] = useState<string | null>(getSessionId());
     const [token, setTokenState] = useState<string | null>(getToken());
     const [parent, setParent] = useState<ParentResponse | null>(null);
     const [children, setChildren] = useState<ChildAccountResponse[]>([]);
@@ -65,16 +67,16 @@ export default function App() {
 
     // Fetch Dashboard core data from API
     const loadDashboardData = useCallback(async () => {
-        if (!token) return;
+        if (!token || !sessionId) return;
         setIsLoading(true);
         setError("");
 
         try {
             const apis = getApis();
             const [me, kids, alertLogs] = await Promise.all([
-                apis.auth.getMeApiAuthMeGet(),
-                apis.children.listChildrenApiChildrenGet(),
-                fetchAlerts(),
+                apis.auth.getMeAuthMeGet(),
+                apis.children.listChildrenChildrenGet(),
+                apis.alerts.listAlertsAlertsGet().then(parseAlerts)
             ]);
 
             setParent(me);
@@ -88,19 +90,57 @@ export default function App() {
         }
     }, [token]);
 
+    // Constantly check profile to see if logged out
+    useEffect(() => {
+        if (!token || !sessionId) return;
+        const fetchMe = async () => {
+            try {
+                const apis = getApis();
+                await apis.auth.getMeAuthMeGet();
+            } catch (e: any) {
+                console.log(e);
+                const status = e.status ?? e.response?.status;
+                if ([401, 404, 503].includes(status)) {
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith("tellmom_")) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+
+                    clearToken();
+                    setTokenState(null);
+                    setSessionIdState(null);
+                    setParent(null);
+                    setChildren([]);
+                    setAlerts([]);
+                    setActiveView("dashboard");
+                }
+            }
+        };
+
+        fetchMe();
+        const interval = setInterval(fetchMe, 5000);
+        return () => clearInterval(interval);
+    }, [token, sessionId]);
+
     // Load profile/data on initial sign-in
     useEffect(() => {
-        if (token) {
+        if (token && sessionId) {
             loadDashboardData();
         }
-    }, [token, loadDashboardData]);
+    }, [token, sessionId, loadDashboardData]);
 
     // Handle WebSocket Connection
     useEffect(() => {
         if (!token) return;
-        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        // const wsUrl = `${protocol}://${window.location.host}/api/alerts/ws?token=${encodeURIComponent(token)}`;
-        const wsUrl = `${protocol}://45.151.155.170:8000/api/alerts/ws`;
+
+        let isCancelled = false;
+
+        const sid = getSessionId() || "";
+        const proxyURL = new URL(import.meta.env.VITE_API_URL);
+        proxyURL.protocol = proxyURL.protocol === "https:" ? "wss" : "ws";
+        proxyURL.pathname = `/session/${sid}/ws/alerts/ws`;
+        const wsUrl = proxyURL.toString();
 
         const connectSocket = () => {
             let hasAuthenticated = false
@@ -111,32 +151,20 @@ export default function App() {
                 ws.send(JSON.stringify({ type: "auth", token }));
             }
 
-            // First message will be used as "auth tag"
-            ws.onmessage = (event) => {
-                let data: any;
-                try {
-                    data = JSON.parse(event.data);
-                } catch {
-                    console.error("Failed to parse message", event.data);
-                    return;
-                }
-
-                if (!hasAuthenticated) {
-                    if (data.type === "auth_ok") {
-                        hasAuthenticated = true;
-                        console.log("WebSocket stream authenticated");
-                    } else {
-                        console.error("Expected auth_ok, got:", data);
-                        ws.close();
-                    }
-                    return;
-                }
-            }
-
             ws.onmessage = (event) => {
                 if (isCancelled) return;
                 try {
                     const raw = JSON.parse(event.data);
+                    if (!hasAuthenticated) {
+                        if (raw.type === "auth_ok") {
+                            hasAuthenticated = true;
+                            console.log("WebSocket stream authenticated");
+                        } else {
+                            console.error("Expected auth_ok, got:", raw);
+                            ws.close();
+                        }
+                        return;
+                    }
 
                     // Check if payload is an alert notification
                     if (raw.type === "alert" || raw.id !== undefined) {
@@ -207,22 +235,6 @@ export default function App() {
         };
     }, [token, children, settings.soundEnabled, settings.soundVolume, settings.desktopNotifications, addToast]);
 
-    // Fallback Polling Interval if enabled
-    useEffect(() => {
-        if (!token || settings.autoRefreshInterval <= 0) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const freshAlerts = await fetchAlerts();
-                setAlerts(freshAlerts);
-            } catch (err) {
-                console.warn("Polling alerts failed:", err);
-            }
-        }, settings.autoRefreshInterval * 1000);
-
-        return () => clearInterval(interval);
-    }, [token, settings.autoRefreshInterval]);
-
     // Navigate actions
     const handleNavigateToAlert = (alertId: number) => {
         setActiveView(`alert-${alertId}`);
@@ -231,7 +243,8 @@ export default function App() {
     // Mark an alert as acknowledged
     const handleAcknowledgeAlert = async (alertId: number) => {
         try {
-            const updated = await acknowledgeAlertWithExplanation(alertId);
+            const apis = getApis();
+            const updated = await apis.alerts.acknowledgeAlertAlertsAlertIdAcknowledgePatch({ alertId }).then(parseAlert);
             const parsedUpdated = {
                 ...updated,
                 detectedStages: alerts.find(a => a.id === alertId)?.detectedStages ?? []
@@ -252,6 +265,7 @@ export default function App() {
     const handleLogout = () => {
         clearToken();
         setTokenState(null);
+        setSessionIdState(null);
         setParent(null);
         setChildren([]);
         setAlerts([]);
@@ -340,6 +354,16 @@ export default function App() {
                 return <LoadingSpinner />;
         }
     };
+
+    // Render Connect screen if session id is missing
+    if (!sessionId) {
+        return (
+            <>
+                <ConnectPage onSuccess={(sid) => setSessionIdState(sid)} />
+                <ToastNotification toasts={toasts} onClose={closeToast} />
+            </>
+        );
+    }
 
     // Render Authentication screen if session token is missing
     if (!token) {

@@ -1,7 +1,9 @@
 import os
+import pathlib
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE = pathlib.Path(__file__).parent.parent.resolve()
+load_dotenv(BASE / ".env")
 
 CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD")
 assert CLASSIFIER_PASSWORD is not None
@@ -19,10 +21,10 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 JWT_SECRET = os.getenv("JWT_SECRET")
 assert JWT_SECRET is not None
 
+PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 60 * 7  # 7 days
-
-CORS_ORIGINS = ["http://localhost:5173"]
 
 CLASSIFIER_MIN_MESSAGES = 7
 

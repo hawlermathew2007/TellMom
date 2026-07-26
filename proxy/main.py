@@ -1,7 +1,12 @@
 import logging
 import json
+from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 
+from proxy.core.config import CORS_ORIGINS
+from proxy.database.session import init_db
 from shared.schemas.response import ResponseStatus
 from proxy.core.jwt import decode_stream_token
 from proxy.routers import auth, session
@@ -14,6 +19,12 @@ from proxy.services.session import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
 
 
 @router.websocket("/stream")
@@ -38,7 +49,6 @@ async def stream(websocket: WebSocket) -> None:
         return
 
     await register_server(server_id, websocket)
-    # TODO: put the enum else where
     await websocket.send_text(json.dumps({"type": ResponseStatus.SUCCESS.value}))
 
     try:
@@ -51,12 +61,21 @@ async def stream(websocket: WebSocket) -> None:
         server_map.pop(server_id, None)
 
 
-app = FastAPI(title="TellMom Proxy Server")
+app = FastAPI(title="TellMom Proxy Server", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth.router)
 app.include_router(session.router)
 app.include_router(router)
 
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("proxy.main:app", host="0.0.0.0", port=8080, reload=True)

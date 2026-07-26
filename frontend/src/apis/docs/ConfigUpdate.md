@@ -1,26 +1,28 @@
 
-# ClassifierCheckInResponse
+# ConfigUpdate
 
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`status` | [ResponseStatus](ResponseStatus.md)
-`message` | string
-`token` | string
+`proxyUrl` | string
+`username` | string
+`password` | string
+`localUrl` | string
 
 ## Example
 
 ```typescript
-import type { ClassifierCheckInResponse } from ''
+import type { ConfigUpdate } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "status": null,
-  "message": null,
-  "token": null,
-} satisfies ClassifierCheckInResponse
+  "proxyUrl": null,
+  "username": null,
+  "password": null,
+  "localUrl": null,
+} satisfies ConfigUpdate
 
 console.log(example)
 
@@ -29,7 +31,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as ClassifierCheckInResponse
+const exampleParsed = JSON.parse(exampleJSON) as ConfigUpdate
 console.log(exampleParsed)
 ```
 

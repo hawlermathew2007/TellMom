@@ -2,7 +2,8 @@ apis/AlertsApi.ts
 apis/AuthApi.ts
 apis/ChildrenApi.ts
 apis/ClassifierApi.ts
-apis/DefaultApi.ts
+apis/ManagementApi.ts
+apis/MessageApi.ts
 apis/index.ts
 docs/AlertResponse.md
 docs/AlertsApi.md
@@ -16,15 +17,18 @@ docs/ChildrenApi.md
 docs/ClassifierApi.md
 docs/ClassifierCheckInRequest.md
 docs/ClassifierCheckInResponse.md
-docs/DefaultApi.md
+docs/ConfigUpdate.md
 docs/HTTPValidationError.md
 docs/IncrementalAnalysisResponse.md
 docs/IngestRequest.md
 docs/LocationInner.md
+docs/ManagementApi.md
+docs/MessageApi.md
 docs/NewlyDetectedStage.md
 docs/ParentLogin.md
 docs/ParentRegister.md
 docs/ParentResponse.md
+docs/ResponseStatus.md
 docs/TokenResponse.md
 docs/ValidationError.md
 index.ts
@@ -36,6 +40,7 @@ models/ChildAccountResponse.ts
 models/ChildAccountUpdate.ts
 models/ClassifierCheckInRequest.ts
 models/ClassifierCheckInResponse.ts
+models/ConfigUpdate.ts
 models/HTTPValidationError.ts
 models/IncrementalAnalysisResponse.ts
 models/IngestRequest.ts
@@ -44,6 +49,7 @@ models/NewlyDetectedStage.ts
 models/ParentLogin.ts
 models/ParentRegister.ts
 models/ParentResponse.ts
+models/ResponseStatus.ts
 models/TokenResponse.ts
 models/ValidationError.ts
 models/index.ts

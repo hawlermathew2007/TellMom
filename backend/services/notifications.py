@@ -6,7 +6,6 @@ class AlertConnectionManager:
         self._connections: dict[int, list[WebSocket]] = {}
 
     async def connect(self, parent_id: int, websocket: WebSocket) -> None:
-        await websocket.accept()
         self._connections.setdefault(parent_id, []).append(websocket)
 
     def disconnect(self, parent_id: int, websocket: WebSocket) -> None:

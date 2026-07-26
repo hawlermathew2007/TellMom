@@ -21,4 +21,6 @@ dependencies = [
     "websockets>=11.0.0",
     "pytest>=8.0.0",
     "testcontainers[postgres]>=4.14.2",
+    "cachetools>=7.1.6",
+    "textual>=8.2.8",
 ]

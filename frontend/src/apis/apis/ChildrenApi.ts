@@ -35,15 +35,15 @@ import {
     HTTPValidationErrorToJSON,
 } from '../models/HTTPValidationError';
 
-export interface CreateChildApiChildrenPostRequest {
+export interface CreateChildChildrenPostRequest {
     childAccountCreate: ChildAccountCreate;
 }
 
-export interface DeleteChildApiChildrenChildIdDeleteRequest {
+export interface DeleteChildChildrenChildIdDeleteRequest {
     childId: number;
 }
 
-export interface UpdateChildApiChildrenChildIdPutRequest {
+export interface UpdateChildChildrenChildIdPutRequest {
     childId: number;
     childAccountUpdate: ChildAccountUpdate;
 }
@@ -54,13 +54,13 @@ export interface UpdateChildApiChildrenChildIdPutRequest {
 export class ChildrenApi extends runtime.BaseAPI {
 
     /**
-     * Creates request options for createChildApiChildrenPost without sending the request
+     * Creates request options for createChildChildrenPost without sending the request
      */
-    async createChildApiChildrenPostRequestOpts(requestParameters: CreateChildApiChildrenPostRequest): Promise<runtime.RequestOpts> {
+    async createChildChildrenPostRequestOpts(requestParameters: CreateChildChildrenPostRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['childAccountCreate'] == null) {
             throw new runtime.RequiredError(
                 'childAccountCreate',
-                'Required parameter "childAccountCreate" was null or undefined when calling createChildApiChildrenPost().'
+                'Required parameter "childAccountCreate" was null or undefined when calling createChildChildrenPost().'
             );
         }
 
@@ -79,7 +79,7 @@ export class ChildrenApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/children`;
+        let urlPath = `/children`;
 
         return {
             path: urlPath,
@@ -93,8 +93,8 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Create Child
      */
-    async createChildApiChildrenPostRaw(requestParameters: CreateChildApiChildrenPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChildAccountResponse>> {
-        const requestOptions = await this.createChildApiChildrenPostRequestOpts(requestParameters);
+    async createChildChildrenPostRaw(requestParameters: CreateChildChildrenPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChildAccountResponse>> {
+        const requestOptions = await this.createChildChildrenPostRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ChildAccountResponseFromJSON(jsonValue));
@@ -103,19 +103,19 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Create Child
      */
-    async createChildApiChildrenPost(requestParameters: CreateChildApiChildrenPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChildAccountResponse> {
-        const response = await this.createChildApiChildrenPostRaw(requestParameters, initOverrides);
+    async createChildChildrenPost(requestParameters: CreateChildChildrenPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChildAccountResponse> {
+        const response = await this.createChildChildrenPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for deleteChildApiChildrenChildIdDelete without sending the request
+     * Creates request options for deleteChildChildrenChildIdDelete without sending the request
      */
-    async deleteChildApiChildrenChildIdDeleteRequestOpts(requestParameters: DeleteChildApiChildrenChildIdDeleteRequest): Promise<runtime.RequestOpts> {
+    async deleteChildChildrenChildIdDeleteRequestOpts(requestParameters: DeleteChildChildrenChildIdDeleteRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['childId'] == null) {
             throw new runtime.RequiredError(
                 'childId',
-                'Required parameter "childId" was null or undefined when calling deleteChildApiChildrenChildIdDelete().'
+                'Required parameter "childId" was null or undefined when calling deleteChildChildrenChildIdDelete().'
             );
         }
 
@@ -132,7 +132,7 @@ export class ChildrenApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/children/{child_id}`;
+        let urlPath = `/children/{child_id}`;
         urlPath = urlPath.replace('{child_id}', encodeURIComponent(String(requestParameters['childId'])));
 
         return {
@@ -146,8 +146,8 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Delete Child
      */
-    async deleteChildApiChildrenChildIdDeleteRaw(requestParameters: DeleteChildApiChildrenChildIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
-        const requestOptions = await this.deleteChildApiChildrenChildIdDeleteRequestOpts(requestParameters);
+    async deleteChildChildrenChildIdDeleteRaw(requestParameters: DeleteChildChildrenChildIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.deleteChildChildrenChildIdDeleteRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.VoidApiResponse(response);
@@ -156,14 +156,14 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Delete Child
      */
-    async deleteChildApiChildrenChildIdDelete(requestParameters: DeleteChildApiChildrenChildIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
-        await this.deleteChildApiChildrenChildIdDeleteRaw(requestParameters, initOverrides);
+    async deleteChildChildrenChildIdDelete(requestParameters: DeleteChildChildrenChildIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.deleteChildChildrenChildIdDeleteRaw(requestParameters, initOverrides);
     }
 
     /**
-     * Creates request options for listChildrenApiChildrenGet without sending the request
+     * Creates request options for listChildrenChildrenGet without sending the request
      */
-    async listChildrenApiChildrenGetRequestOpts(): Promise<runtime.RequestOpts> {
+    async listChildrenChildrenGetRequestOpts(): Promise<runtime.RequestOpts> {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
@@ -177,7 +177,7 @@ export class ChildrenApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/children`;
+        let urlPath = `/children`;
 
         return {
             path: urlPath,
@@ -190,8 +190,8 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * List Children
      */
-    async listChildrenApiChildrenGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<ChildAccountResponse>>> {
-        const requestOptions = await this.listChildrenApiChildrenGetRequestOpts();
+    async listChildrenChildrenGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<ChildAccountResponse>>> {
+        const requestOptions = await this.listChildrenChildrenGetRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => jsonValue.map(ChildAccountResponseFromJSON));
@@ -200,26 +200,26 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * List Children
      */
-    async listChildrenApiChildrenGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<ChildAccountResponse>> {
-        const response = await this.listChildrenApiChildrenGetRaw(initOverrides);
+    async listChildrenChildrenGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<ChildAccountResponse>> {
+        const response = await this.listChildrenChildrenGetRaw(initOverrides);
         return await response.value();
     }
 
     /**
-     * Creates request options for updateChildApiChildrenChildIdPut without sending the request
+     * Creates request options for updateChildChildrenChildIdPut without sending the request
      */
-    async updateChildApiChildrenChildIdPutRequestOpts(requestParameters: UpdateChildApiChildrenChildIdPutRequest): Promise<runtime.RequestOpts> {
+    async updateChildChildrenChildIdPutRequestOpts(requestParameters: UpdateChildChildrenChildIdPutRequest): Promise<runtime.RequestOpts> {
         if (requestParameters['childId'] == null) {
             throw new runtime.RequiredError(
                 'childId',
-                'Required parameter "childId" was null or undefined when calling updateChildApiChildrenChildIdPut().'
+                'Required parameter "childId" was null or undefined when calling updateChildChildrenChildIdPut().'
             );
         }
 
         if (requestParameters['childAccountUpdate'] == null) {
             throw new runtime.RequiredError(
                 'childAccountUpdate',
-                'Required parameter "childAccountUpdate" was null or undefined when calling updateChildApiChildrenChildIdPut().'
+                'Required parameter "childAccountUpdate" was null or undefined when calling updateChildChildrenChildIdPut().'
             );
         }
 
@@ -238,7 +238,7 @@ export class ChildrenApi extends runtime.BaseAPI {
             }
         }
 
-        let urlPath = `/api/children/{child_id}`;
+        let urlPath = `/children/{child_id}`;
         urlPath = urlPath.replace('{child_id}', encodeURIComponent(String(requestParameters['childId'])));
 
         return {
@@ -253,8 +253,8 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Update Child
      */
-    async updateChildApiChildrenChildIdPutRaw(requestParameters: UpdateChildApiChildrenChildIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChildAccountResponse>> {
-        const requestOptions = await this.updateChildApiChildrenChildIdPutRequestOpts(requestParameters);
+    async updateChildChildrenChildIdPutRaw(requestParameters: UpdateChildChildrenChildIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ChildAccountResponse>> {
+        const requestOptions = await this.updateChildChildrenChildIdPutRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ChildAccountResponseFromJSON(jsonValue));
@@ -263,8 +263,8 @@ export class ChildrenApi extends runtime.BaseAPI {
     /**
      * Update Child
      */
-    async updateChildApiChildrenChildIdPut(requestParameters: UpdateChildApiChildrenChildIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChildAccountResponse> {
-        const response = await this.updateChildApiChildrenChildIdPutRaw(requestParameters, initOverrides);
+    async updateChildChildrenChildIdPut(requestParameters: UpdateChildChildrenChildIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ChildAccountResponse> {
+        const response = await this.updateChildChildrenChildIdPutRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
