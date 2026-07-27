@@ -118,13 +118,28 @@ async def forward_request(session_id: str, path: str, request: Request):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     status = response.get("status", 500)
-    resp_headers = response.get("headers", {})
+    resp_headers = {
+        k: v
+        for k, v in response.get("headers", {}).items()
+        if k.lower()
+        not in {
+            "content-length",
+            "transfer-encoding",
+            "connection",
+        }
+    }
+    # TODO: fix this tmr, check the login endpoint headers
     resp_headers["content-type"] = "application/json"
     resp_body_b64 = response.get("body", "").strip()
     padding = "=" * (-len(resp_body_b64) % 4)
     resp_body = (
         base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
     )
+
+    # TODO: this is a shitty way to handle the things
+    # Uvicorn will crash if a body is returned with a 204, 304, or <200 status code
+    if status in (204, 304) or status < 200:
+        status = 200
 
     return Response(content=resp_body, status_code=status, headers=resp_headers)
 

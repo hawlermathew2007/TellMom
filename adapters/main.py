@@ -1,4 +1,6 @@
+import logging
 import subprocess
+import asyncio
 import yaml
 import uvicorn
 from typing import Dict, Optional
@@ -11,8 +13,10 @@ from adapters.minecraft.minecraft import plugin as minecraft_plugin
 from adapters.discord.discord import plugin as discord_plugin
 from adapters.client import SecureProxyClient
 from backend.schemas.ingest import IngestRequest
-from adapters.config import CONFIG_FILE, BASE_DIR, HOST, PORT
+from adapters.config import CONFIG_FILE, BASE_DIR, HOST, PORT, RECONNECT_INTERVAL
 
+
+logger = logging.getLogger(__name__)
 
 # Registering all the different modules
 registry = AdapterRegistry()
@@ -34,7 +38,7 @@ def load_config() -> Dict[str, dict]:
                     if name in user_cfg:
                         default_val.update(user_cfg[name])
         except Exception as e:
-            print(f"Error loading config: {e}")
+            logger.error(f"Error loading config: {e}")
     return cfg
 
 
@@ -115,10 +119,10 @@ class ServerState:
             try:
                 await self.proxy_client.send(payload)
             except Exception as e:
-                print(f"Failed to forward message: {e}")
-                print(f"Error message payload: {payload}")
+                logger.error(f"Failed to forward message: {e}")
+                logger.error(f"Error message payload: {payload}")
         else:
-            print("Received payload but proxy not connected:", payload)
+            logger.error("Received payload but proxy not connected:", payload)
 
 
 @asynccontextmanager
@@ -126,22 +130,48 @@ async def lifespan(app: FastAPI):
     URL = f"http://{HOST}:{PORT}"
     app.state.server = ServerState(URL)
 
-    server_config = load_server_config()
-    proxy_url = server_config.get("proxy_url")
-    server_id = server_config.get("server_id")
-    password_code = server_config.get("password_code")
+    async def reconnect_loop():
+        while True:
+            try:
+                if (
+                    app.state.server.connection_info.get("status", "").lower()
+                    != "connected"
+                ):
+                    server_config = load_server_config()
+                    proxy_url = server_config.get("proxy_url")
+                    server_id = server_config.get("server_id")
+                    password_code = server_config.get("password_code")
 
-    if proxy_url and server_id and password_code:
-        try:
-            await app.state.server.connect(proxy_url, server_id, password_code)
-        except Exception as e:
-            print(f"Failed to auto-connect to proxy: {e}")
+                    if proxy_url and server_id and password_code:
+                        try:
+                            await app.state.server.connect(
+                                proxy_url,
+                                server_id,
+                                password_code,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to auto-connect to proxy: {e}")
+
+                await asyncio.sleep(RECONNECT_INTERVAL)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Reconnect loop error: {e}")
+                await asyncio.sleep(RECONNECT_INTERVAL)
 
     config = load_config()
     for name, cfg in config.items():
         if cfg.get("auto_start"):
             app.state.server.start_adapter(name, cfg)
-    yield
+
+    reconnect_task = asyncio.create_task(reconnect_loop())
+
+    try:
+        yield
+    finally:
+        reconnect_task.cancel()
+        await asyncio.gather(reconnect_task, return_exceptions=True)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -149,6 +179,11 @@ app = FastAPI(lifespan=lifespan)
 
 def get_state(request: Request) -> ServerState:
     return request.app.state.server
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.get("/api/adapters")
@@ -225,20 +260,16 @@ class ConnectRequest(BaseModel):
 def load_server_config() -> dict:
     if CONFIG_FILE.exists():
         try:
-            import yaml
-
             with open(CONFIG_FILE, "r") as f:
                 user_cfg = yaml.safe_load(f)
             if user_cfg and "server_config" in user_cfg:
                 return user_cfg["server_config"]
         except Exception as e:
-            pass
+            logger.error(f"Failed to load config: {e}")
     return {}
 
 
 def save_server_config(proxy_url: str, server_id: str, password_code: str):
-    import yaml
-
     user_cfg = {}
     if CONFIG_FILE.exists():
         try:

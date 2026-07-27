@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 SESSION="dev"
 
-# Setup
+# Install dependencies
 uv sync
 
+# Start containers
 docker compose up -d
 
-echo "Waiting for containers to start..."
-until [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q postgres)")" = "healthy" ]; do
+echo "Waiting for PostgreSQL..."
+POSTGRES_ID="$(docker compose ps -q postgres)"
+
+until [ "$(docker inspect -f '{{.State.Health.Status}}' "$POSTGRES_ID")" = "healthy" ]; do
     sleep 1
 done
 
@@ -18,37 +21,55 @@ echo "Database is ready."
 
 sh ./scripts/create-db.sh
 
-# Create session if it doesn't exist
+# Create tmux session if needed
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-    tmux new-session -d -s "$SESSION"
+    tmux new-session -d -s "$SESSION" -n temp
 fi
 
-# Create window 1 if it doesn't exist
-if ! tmux list-windows -t "$SESSION" | grep -q "^1:"; then
-    tmux new-window -t "$SESSION":1
+# Ensure temp exists at window 0
+if ! tmux list-windows -t "$SESSION" -F '#I' | grep -qx '^0$'; then
+    tmux new-window -d -t "$SESSION:0" -n temp
 fi
 
-# Remove anything already in window 1
-tmux kill-pane -a -t "$SESSION":1 2>/dev/null || true
+# Remove every window except temp (0)
+tmux list-windows -t "$SESSION" -F '#I' |
+while read -r idx; do
+    if [ "$idx" != "0" ]; then
+        tmux kill-window -t "$SESSION:$idx"
+    fi
+done
 
-# Make a 2x2 grid
-tmux split-window -h -t "$SESSION":1       # left | right
-tmux split-window -v -t "$SESSION":1.0     # split left
-tmux split-window -v -t "$SESSION":1.1     # split right
-tmux select-layout -t "$SESSION":1 tiled
+# Create fresh windows
+tmux new-window -t "$SESSION:1" -n services
+tmux new-window -t "$SESSION:2" -n backend-tui
+tmux new-window -t "$SESSION:3" -n adapter-tui
 
-# Top-left
-tmux send-keys -t "$SESSION":1.0 "uv run python -m proxy.main" C-m
+# Build a clean 2x2 grid in services
+tmux split-window -h -t "$SESSION:1"
+tmux split-window -v -t "$SESSION:1.0"
+tmux split-window -v -t "$SESSION:1.1"
+tmux select-layout -t "$SESSION:1" tiled
 
-# Top-right
-tmux send-keys -t "$SESSION":1.1 "uv run python -m backend.main" C-m
+# Services
+tmux send-keys -t "$SESSION:1.0" "uv run python -m proxy.main" C-m
+tmux send-keys -t "$SESSION:1.1" "uv run python -m backend.main" C-m
+tmux send-keys -t "$SESSION:1.2" "cd classifier && uv run main.py" C-m
+tmux send-keys -t "$SESSION:1.3" "uv run python -m adapters.main" C-m
 
-# Bottom-left
-tmux send-keys -t "$SESSION":1.2 "cd classifier && uv run main.py" C-m
+# TUIs
+echo "Waiting for backend..."
+until curl -fsS http://localhost:8000/health >/dev/null; do
+    sleep 1
+done
 
-# Bottom-right
-tmux send-keys -t "$SESSION":1.3 "cd frontend && npm run dev" C-m
+echo "Waiting for adapter..."
+until curl -fsS http://localhost:8001/health >/dev/null; do
+    sleep 1
+done
+tmux send-keys -t "$SESSION:2" "uv run python -m backend.tui" C-m
+tmux send-keys -t "$SESSION:3" "uv run python -m adapters.tui" C-m
 
-tmux select-window -t "$SESSION":1
-tmux select-pane -t "$SESSION":1.0
-tmux attach -t "$SESSION"
+tmux select-window -t "$SESSION:1"
+tmux select-pane -t "$SESSION:1.0"
+
+exec tmux attach -t "$SESSION"

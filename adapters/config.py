@@ -14,3 +14,4 @@ PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
 API_URL = f"http://{HOST}:{PORT}/api"
 
 CONFIG_FILE = BASE_DIR / "config.yaml"
+RECONNECT_INTERVAL = 5

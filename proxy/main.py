@@ -27,6 +27,11 @@ async def lifespan(_: FastAPI):
     yield
 
 
+@router.get("/health", tags=["Health"])
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @router.websocket("/stream")
 async def stream(websocket: WebSocket) -> None:
     await websocket.accept()

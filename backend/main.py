@@ -39,6 +39,11 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
 app.include_router(auth.router)
 app.include_router(children.router)
 app.include_router(alerts.router)
