@@ -1,12 +1,7 @@
-"""
-Minecraft chat log adapter.
-"""
-
 from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import re
 import sys
@@ -45,54 +40,39 @@ class ChatMessage:
     file_offset: int
 
 
-class OffsetStore:
-    def __init__(self, path: Path):
-        self.path = path
-        self.read_offset: int = 0
-        self.last_sent_offset: int = 0
-        self._load()
-
-    def _load(self) -> None:
-        if self.path.exists():
-            try:
-                data = json.loads(self.path.read_text())
-                self.read_offset = data.get("read_offset", 0)
-                self.last_sent_offset = data.get("last_sent_offset", 0)
-            except (json.JSONDecodeError, OSError):
-                log.warning("Could not read state file %s, starting fresh", self.path)
-
-    def save(self) -> None:
-        self.path.write_text(
-            json.dumps(
-                {
-                    "read_offset": self.read_offset,
-                    "last_sent_offset": self.last_sent_offset,
-                }
-            )
-        )
-
-
 class LogTailer:
-    def __init__(self, log_path: Path, start_offset: int = 0):
+    def __init__(self, log_path: Path):
         self.log_path = log_path
-        self._offset = start_offset
+
+        if log_path.exists():
+            self._offset = log_path.stat().st_size
+        else:
+            self._offset = 0
 
     def read_new_lines(self) -> list[tuple[str, int]]:
         if not self.log_path.exists():
             return []
 
-        lines: list[tuple[str, int]] = []
+        size = self.log_path.stat().st_size
+        if size < self._offset:
+            # File was truncated or recreated.
+            self._offset = 0
+
+        lines = []
+
         with self.log_path.open("r", encoding="utf-8", errors="replace") as f:
             f.seek(self._offset)
+
             while True:
                 raw = f.readline()
                 if not raw:
                     break
                 if not raw.endswith("\n"):
                     break
-                pos_after = f.tell()
-                lines.append((raw.rstrip("\n"), pos_after))
-                self._offset = pos_after
+
+                self._offset = f.tell()
+                lines.append((raw.rstrip("\n"), self._offset))
+
         return lines
 
 
@@ -148,36 +128,27 @@ async def run(
     log_path: Path,
     local_ingest_url: str,
     server_id: str,
-    state_path: Path,
     poll_interval: float,
     max_retries: int,
 ) -> None:
-    store = OffsetStore(state_path)
-    tailer = LogTailer(log_path, start_offset=store.read_offset)
+    tailer = LogTailer(log_path)
 
     log.info(
-        "Configuration: %s (server id), %s (backend url), %s (state path), %s (poll interval), %s (max retries)",
+        "Configuration: %s (server id), %s (backend url), %s (poll interval), %s (max retries)",
         server_id,
         local_ingest_url,
-        state_path,
         poll_interval,
         max_retries,
     )
-    log.info("Watching %s (starting at offset %d)", log_path, store.read_offset)
+    log.info("Watching the log file at %s)", log_path)
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         while True:
             new_lines = tailer.read_new_lines()
 
             for line, offset_after in new_lines:
-                store.read_offset = offset_after
-
-                if offset_after <= store.last_sent_offset:
-                    continue
-
                 msg = parse_chat_message(line, offset_after)
                 if msg is None:
-                    store.save()
                     continue
 
                 payload = {
@@ -189,9 +160,6 @@ async def run(
 
                 await send_with_retry(client, local_ingest_url, payload, max_retries)
                 log.info("Sent <%s> %s", msg.username, msg.message)
-
-                store.last_sent_offset = offset_after
-                store.save()
 
             await asyncio.sleep(poll_interval)
 
@@ -227,7 +195,9 @@ class MinecraftAdapter(BaseAdapter):
             str(config.get("max_retries", 5)),
         ]
 
-        local_ingest_url = config.get("local_ingest_url", "http://localhost:8000/ingest")
+        local_ingest_url = config.get(
+            "local_ingest_url", "http://localhost:8000/ingest"
+        )
         args.extend(["--local-ingest-url", local_ingest_url])
 
         return subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
@@ -271,16 +241,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    state_path = args.state_file or args.log.with_suffix(
-        args.log.suffix + ".adapter-state.json"
-    )
-
     asyncio.run(
         run(
             log_path=args.log,
             local_ingest_url=args.local_ingest_url,
             server_id=args.server_id,
-            state_path=state_path,
             poll_interval=args.poll_interval,
             max_retries=args.max_retries,
         )
