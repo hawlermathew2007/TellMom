@@ -135,11 +135,6 @@ async def forward_request(session_id: str, path: str, request: Request):
         base64.urlsafe_b64decode(resp_body_b64 + padding) if resp_body_b64 else b""
     )
 
-    # TODO: this is a shitty way to handle the things
-    # Uvicorn will crash if a body is returned with a 204, 304, or <200 status code
-    if status in (204, 304) or status < 200:
-        status = 200
-
     return Response(content=resp_body, status_code=status, headers=resp_headers)
 
 

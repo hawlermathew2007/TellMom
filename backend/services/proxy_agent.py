@@ -286,7 +286,7 @@ class ProxyAgent:
         body_bytes = base64.urlsafe_b64decode(body_b64) if body_b64 else b""
 
         body = body_bytes.decode()
-        if method in ["POST", "PUT", "PATCH"]:
+        if method in ["POST", "PUT", "PATCH"] and body:
             msg = EncryptedMessage.model_validate_json(body)
 
             if state is None:
@@ -363,20 +363,23 @@ class ProxyAgent:
                     timeout=30.0,
                 )
 
-                resp_body = resp.content.decode()
                 resp_status = resp.status_code
 
-                ciphertext = encrypt_message(
-                    sequence=state.sequence,
-                    aes_key=state.aes_key,
-                    nonce_base=state.nonce_base,
-                    plaintext=resp_body,
-                    session_id=session_id,
-                )
-                resp_body_bytes = ciphertext.model_dump_json().encode()
-                resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode(
-                    "ascii"
-                )
+                if resp.content:
+                    resp_body = resp.content.decode()
+                    ciphertext = encrypt_message(
+                        sequence=state.sequence,
+                        aes_key=state.aes_key,
+                        nonce_base=state.nonce_base,
+                        plaintext=resp_body,
+                        session_id=session_id,
+                    )
+                    resp_body_bytes = ciphertext.model_dump_json().encode()
+                    resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode(
+                        "ascii"
+                    )
+                else:
+                    resp_body_b64 = ""
 
                 tunnel_resp = TunnelResponse(
                     request_id=request_id,
