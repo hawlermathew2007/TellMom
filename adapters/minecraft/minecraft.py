@@ -23,11 +23,13 @@ log = logging.getLogger("minecraft_adapter")
 
 
 CHAT_LINE_RE = re.compile(
-    r"""^\[\d{2}:\d{2}:\d{2}\]\s+
-        \[Server\ thread/INFO\]:\s+
-        (?:\[Not\ Secure\]\s+)?
-        <(?P<username>[^>]+)>\s+
-        (?P<message>.*)$
+    r"""
+    ^\[\d{2}:\d{2}:\d{2}\]   # timestamp
+    .*?                      # anything until the username
+    <(?P<username>[^>]+)>    # username
+    \s+
+    (?P<message>.*)          # chat message
+    $
     """,
     re.VERBOSE,
 )
