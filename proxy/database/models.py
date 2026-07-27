@@ -36,3 +36,26 @@ class Server(Base):
         nullable=False,
         comment="Time created",
     )
+
+
+class ChatAlert(Base):
+    __tablename__ = "chat_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    server_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        comment="Server that sent the alert",
+    )
+    alert_data: Mapped[str] = mapped_column(
+        String,
+        comment="JSON data of the alert",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

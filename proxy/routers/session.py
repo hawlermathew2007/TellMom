@@ -1,7 +1,6 @@
 import base64
 import uuid
 from fastapi import APIRouter, HTTPException, Request, WebSocket
-
 from fastapi.responses import Response
 
 from shared.schemas.response import ResponseStatus
@@ -118,7 +117,17 @@ async def forward_request(session_id: str, path: str, request: Request):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     status = response.get("status", 500)
-    resp_headers = response.get("headers", {})
+    resp_headers = {
+        k: v
+        for k, v in response.get("headers", {}).items()
+        if k.lower()
+        not in {
+            "content-length",
+            "transfer-encoding",
+            "connection",
+        }
+    }
+    # TODO: fix this tmr, check the login endpoint headers
     resp_headers["content-type"] = "application/json"
     resp_body_b64 = response.get("body", "").strip()
     padding = "=" * (-len(resp_body_b64) % 4)

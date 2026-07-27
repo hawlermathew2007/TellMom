@@ -19,7 +19,7 @@ from shared.services.security import (
     b64_to_int,
 )
 
-log = logging.getLogger("tellmom.client")
+logger = logging.getLogger(__name__)
 
 
 class SecureProxyClient:
@@ -69,7 +69,7 @@ class SecureProxyClient:
                 "client_dh_pubkey": int_to_b64(client_pub),
             },
         )
-        logging.getLogger(__name__).error(f"Debug statement: {response}")
+        logger.error(f"Debug statement: {response}")
         response.raise_for_status()
         data = response.json()
 
@@ -124,14 +124,14 @@ class SecureProxyClient:
 class IngestClient:
     def __init__(
         self,
-        backend_url: str | None,
+        local_ingest_url: str | None,
         server_id: str,
         proxy_url: str,
         timeout: float = 10.0,
         password_code: str | None = None,
         client_id: str | None = None,
     ):
-        self.backend_url = backend_url
+        self.local_ingest_url = local_ingest_url
         self.server_id = server_id
         self.proxy_url = proxy_url
         self.password_code = password_code or ""
@@ -147,15 +147,15 @@ class IngestClient:
             if proxy_url
             else None
         )
-        self._backend_client = httpx.AsyncClient(timeout=timeout)
+        self._local_ingest_client = httpx.AsyncClient(timeout=timeout)
 
     async def send(self, payload: dict) -> None:
         if self._client is not None:
             await self._client.send(payload)
             return
 
-        assert self.backend_url is not None
-        resp = await self._backend_client.post(self.backend_url, json=payload)
+        assert self.local_ingest_url is not None
+        resp = await self._local_ingest_client.post(self.local_ingest_url, json=payload)
         resp.raise_for_status()
 
     async def send_with_retry(self, payload: dict, max_retries: int = 5) -> None:
@@ -167,20 +167,20 @@ class IngestClient:
                 return
             except httpx.HTTPStatusError as exc:
                 if 400 <= exc.response.status_code < 500:
-                    log.error(
+                    logger.error(
                         "Backend rejected message (status %d): %s",
                         exc.response.status_code,
                         exc.response.text,
                     )
                     return
-                log.warning(
+                logger.warning(
                     "Server error sending message (attempt %d/%d): %s",
                     attempt,
                     max_retries,
                     exc,
                 )
             except httpx.HTTPError as exc:
-                log.warning(
+                logger.warning(
                     "Network error sending message (attempt %d/%d): %s",
                     attempt,
                     max_retries,
@@ -190,10 +190,10 @@ class IngestClient:
             if attempt < max_retries:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 30.0)
-        log.error("Giving up on message after %d attempts", max_retries)
+        logger.error("Giving up on message after %d attempts", max_retries)
 
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()
-        if self._backend_client is not None:
-            await self._backend_client.aclose()
+        if self._local_ingest_client is not None:
+            await self._local_ingest_client.aclose()

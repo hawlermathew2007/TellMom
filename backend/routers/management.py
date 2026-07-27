@@ -1,9 +1,11 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.services.proxy_agent import ProxyState, save_state, load_state
 from backend.services.proxy_manager import proxy_manager
 from backend.services.classifier_stream import classifier_stream
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/management", tags=["management"])
 
 
@@ -32,6 +34,7 @@ async def update_state(data: ConfigUpdate):
     await proxy_manager.update_config(
         state.proxy_url, state.username, state.password, state.local_url
     )
+
     return {"status": "ok"}
 
 
@@ -83,6 +86,8 @@ async def status():
 
     return {
         "status": current_status,
-        "classifier_status": "Connected" if classifier_stream.connected else "Disconnected",
+        "classifier_status": "Connected"
+        if classifier_stream.connected
+        else "Disconnected",
         "server_id": proxy_manager.agent.server_id if proxy_manager.agent else None,
     }

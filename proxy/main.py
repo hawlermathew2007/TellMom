@@ -27,6 +27,11 @@ async def lifespan(_: FastAPI):
     yield
 
 
+@router.get("/health", tags=["Health"])
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @router.websocket("/stream")
 async def stream(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -54,7 +59,7 @@ async def stream(websocket: WebSocket) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
-            await handle_server_message(raw)
+            await handle_server_message(server_id, raw)
     except WebSocketDisconnect:
         logger.info("Server websocket disconnected: %s", server_id)
     finally:
@@ -77,5 +82,10 @@ app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend
 
 if __name__ == "__main__":
     import uvicorn
+    from proxy.core.config import HOST, PORT
+    from argparse import ArgumentParser
 
-    uvicorn.run("proxy.main:app", host="0.0.0.0", port=8080, reload=True)
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+    uvicorn.run("proxy.main:app", host=HOST, port=PORT, reload=args.reload)
