@@ -21,6 +21,15 @@ async def lifespan(_: FastAPI):
         getattr(state, "password", ""),
         getattr(state, "local_url", ""),
     )
+
+    try:
+        await proxy_manager.login()
+        await proxy_manager.connect()
+    except Exception as e:
+        logger.error(f"Auto-login failed: {e}")
+        proxy_manager.status = "Login/Connection Failed"
+        proxy_manager.agent = None
+
     try:
         await classifier_stream.ensure_connected()
         logger.debug("Classifier connected successfully")
@@ -30,6 +39,11 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
 app.include_router(auth.router)
 app.include_router(children.router)
 app.include_router(alerts.router)
@@ -39,5 +53,11 @@ app.include_router(management.router)
 
 if __name__ == "__main__":
     import uvicorn
+    from backend.core.config import HOST, PORT
+    from argparse import ArgumentParser
 
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=args.reload)

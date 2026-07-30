@@ -1,169 +1,332 @@
-import httpx
-from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, DataTable, Log, Input, Button, Label
-from textual.containers import Horizontal, Vertical
-from textual.binding import Binding
+import logging
+import subprocess
+import asyncio
+import yaml
+import uvicorn
+from typing import Dict, Optional
+from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 
-API_URL = "http://127.0.0.1:8000/api"
+from adapters.base import AdapterRegistry
+from adapters.minecraft.minecraft import plugin as minecraft_plugin
+from adapters.discord.discord import plugin as discord_plugin
+from adapters.client import SecureProxyClient
+from backend.schemas.ingest import IngestRequest
+from adapters.config import CONFIG_FILE, BASE_DIR, HOST, PORT, RECONNECT_INTERVAL
 
-class TellMomTUI(App):
-    CSS = """
-    #main_container {
-        layout: horizontal;
-    }
-    #left_panel {
-        width: 65%;
-        border: solid green;
-    }
-    #right_panel {
-        width: 35%;
-        border: solid blue;
-        padding: 1;
-    }
-    DataTable {
-        height: 1fr;
-    }
-    Log {
-        height: 10;
-        border-top: solid green;
-    }
-    .input_row {
-        margin-bottom: 1;
-    }
-    Button {
-        margin-right: 1;
-    }
-    """
-    
-    BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("s", "start_adapter", "Start Adapter"),
-        Binding("x", "stop_adapter", "Stop Adapter"),
-    ]
 
-    def __init__(self):
-        super().__init__()
-        self.client = httpx.AsyncClient(timeout=5.0)
+logger = logging.getLogger(__name__)
 
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        with Horizontal(id="main_container"):
-            with Vertical(id="left_panel"):
-                yield DataTable(id="adapters_table")
-                yield Log(id="logs_panel")
-            with Vertical(id="right_panel"):
-                yield Label("Connection to Remote Proxy", classes="header")
-                yield Label("Status: Checking...", id="conn_status")
-                yield Input(placeholder="Proxy URL", id="input_proxy_url", classes="input_row")
-                yield Input(placeholder="Server ID", id="input_server_id", classes="input_row")
-                yield Input(placeholder="Password Code", id="input_password", password=True, classes="input_row")
-                with Horizontal():
-                    yield Button("Connect", id="btn_connect", variant="success")
-                    yield Button("Disconnect", id="btn_disconnect", variant="error")
-        yield Footer()
+# Registering all the different modules
+registry = AdapterRegistry()
+registry.register(minecraft_plugin)
+registry.register(discord_plugin)
 
-    def on_mount(self) -> None:
-        table = self.query_one(DataTable)
-        table.add_columns("Name", "Status", "Description", "Server ID")
-        self.update_data()
-        self.set_interval(2.0, self.update_data)
 
-    async def update_data(self) -> None:
+def load_config() -> Dict[str, dict]:
+    cfg = {}
+    for adapter in registry.list_adapters():
+        cfg[adapter.name] = adapter.default_config.copy()
+
+    if CONFIG_FILE.exists():
         try:
-            # Update adapters
-            resp = await self.client.get(f"{API_URL}/adapters")
-            if resp.status_code == 200:
-                adapters = resp.json()
-                table = self.query_one(DataTable)
-                row = table.cursor_coordinate.row
-                table.clear()
-                for adp in adapters:
-                    status = f"[green]{adp['status']}[/]" if adp["status"] == "RUNNING" else f"[red]{adp['status']}[/]"
-                    table.add_row(adp["name"], status, adp["description"], adp["server_id"])
-                if row < table.row_count:
-                    table.move_cursor(row=row)
-            
-            # Update connection status
-            resp = await self.client.get(f"{API_URL}/connection")
-            if resp.status_code == 200:
-                conn = resp.json()
-                status_label = self.query_one("#conn_status", Label)
-                color = "green" if conn["status"] == "Connected" else "red" if "Error" in conn["status"] else "yellow"
-                status_label.update(f"Status: [{color}]{conn['status']}[/]")
-                
+            with open(CONFIG_FILE, "r") as f:
+                user_cfg = yaml.safe_load(f)
+            if user_cfg:
+                for name, default_val in cfg.items():
+                    if name in user_cfg:
+                        default_val.update(user_cfg[name])
         except Exception as e:
-            self.query_one(Log).write_line(f"Error fetching data: {e}")
+            logger.error(f"Error loading config: {e}")
+    return cfg
 
-    async def action_start_adapter(self) -> None:
-        table = self.query_one(DataTable)
-        log_panel = self.query_one(Log)
-        
-        if table.row_count == 0:
-            return
-        try:
-            name = table.get_row_at(table.cursor_coordinate.row)[0]
-        except Exception:
+
+class ServerState:
+    """Holds all mutable runtime state for the app, replacing module-level globals."""
+
+    def __init__(self, local_ingest_url: str) -> None:
+        self.local_ingest_url = local_ingest_url
+        self.processes: Dict[str, subprocess.Popen] = {}
+        self.proxy_client: Optional[SecureProxyClient] = None
+        self.connection_info: Dict[str, Optional[str]] = {
+            "proxy_url": None,
+            "server_id": None,
+            "status": "Disconnected",
+        }
+
+    def start_adapter(self, name: str, config: dict):
+        if name in self.processes and self.processes[name].poll() is None:
             return
 
+        adapter = registry.get(name)
+        if not adapter:
+            return
+
+        log_file_path = BASE_DIR / "logs" / f"{name}_output.log"
+        log_file_path.parent.mkdir(exist_ok=True, parents=True)
+        log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
+        config["local_ingest_url"] = f"{self.local_ingest_url}/ingest"
+        proc = adapter.launch(config, log_file)
+        self.processes[name] = proc
+
+    def stop_adapter(self, name: str) -> bool:
+        if name not in self.processes or self.processes[name].poll() is not None:
+            return False
+
+        proc = self.processes[name]
+        proc.terminate()
         try:
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/start")
-            log_panel.write_line(f"Start {name}: {resp.status_code}")
-            await self.update_data()
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        self.processes.pop(name, None)
+        return True
+
+    def is_running(self, name: str) -> bool:
+        return name in self.processes and self.processes[name].poll() is None
+
+    async def connect(self, proxy_url: str, server_id: str, password_code: str):
+        if self.proxy_client is not None:
+            await self.proxy_client.aclose()
+
+        try:
+            client = SecureProxyClient(
+                proxy_url=proxy_url,
+                server_id=server_id,
+                password_code=password_code,
+                client_id="central-server",
+            )
+            await client.ensure_handshake()
+            self.proxy_client = client
+            self.connection_info["proxy_url"] = proxy_url
+            self.connection_info["server_id"] = server_id
+            self.connection_info["status"] = "Connected"
         except Exception as e:
-            log_panel.write_line(f"Failed to start {name}: {e}")
+            self.connection_info["status"] = f"Error: {e}"
+            raise
 
-    async def action_stop_adapter(self) -> None:
-        table = self.query_one(DataTable)
-        log_panel = self.query_one(Log)
-        
-        if table.row_count == 0:
-            return
-        try:
-            name = table.get_row_at(table.cursor_coordinate.row)[0]
-        except Exception:
-            return
+    async def disconnect(self):
+        if self.proxy_client is not None:
+            await self.proxy_client.aclose()
+            self.proxy_client = None
+        self.connection_info["status"] = "Disconnected"
+        self.connection_info["proxy_url"] = None
+        self.connection_info["server_id"] = None
 
-        try:
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/stop")
-            log_panel.write_line(f"Stop {name}: {resp.status_code}")
-            await self.update_data()
-        except Exception as e:
-            log_panel.write_line(f"Failed to stop {name}: {e}")
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        log_panel = self.query_one(Log)
-        if event.button.id == "btn_connect":
-            proxy_url = self.query_one("#input_proxy_url", Input).value
-            server_id = self.query_one("#input_server_id", Input).value
-            password = self.query_one("#input_password", Input).value
-            
-            if not proxy_url or not server_id or not password:
-                log_panel.write_line("Please fill all connection fields.")
-                return
-                
-            log_panel.write_line("Connecting...")
+    async def forward(self, payload: dict):
+        if self.proxy_client and self.connection_info["status"] == "Connected":
             try:
-                resp = await self.client.post(f"{API_URL}/connection", json={
-                    "proxy_url": proxy_url,
-                    "server_id": server_id,
-                    "password_code": password
-                })
-                if resp.status_code == 200:
-                    log_panel.write_line("Connected successfully!")
-                else:
-                    log_panel.write_line(f"Connection failed: {resp.text}")
-                await self.update_data()
+                await self.proxy_client.send(payload)
             except Exception as e:
-                log_panel.write_line(f"Connection error: {e}")
-                
-        elif event.button.id == "btn_disconnect":
+                logger.error(f"Failed to forward message: {e}")
+                logger.error(f"Error message payload: {payload}")
+        else:
+            logger.error("Received payload but proxy not connected:", payload)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    URL = f"http://{HOST}:{PORT}"
+    app.state.server = ServerState(URL)
+
+    async def reconnect_loop():
+        while True:
             try:
-                await self.client.post(f"{API_URL}/connection/disconnect")
-                log_panel.write_line("Disconnected.")
-                await self.update_data()
+                if (
+                    app.state.server.connection_info.get("status", "").lower()
+                    != "connected"
+                ):
+                    server_config = load_server_config()
+                    proxy_url = server_config.get("proxy_url")
+                    server_id = server_config.get("server_id")
+                    password_code = server_config.get("password_code")
+
+                    if proxy_url and server_id and password_code:
+                        try:
+                            await app.state.server.connect(
+                                proxy_url,
+                                server_id,
+                                password_code,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to auto-connect to proxy: {e}")
+
+                await asyncio.sleep(RECONNECT_INTERVAL)
+
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                log_panel.write_line(f"Disconnect error: {e}")
+                logger.error(f"Reconnect loop error: {e}")
+                await asyncio.sleep(RECONNECT_INTERVAL)
+
+    config = load_config()
+    for name, cfg in config.items():
+        if cfg.get("auto_start"):
+            app.state.server.start_adapter(name, cfg)
+
+    reconnect_task = asyncio.create_task(reconnect_loop())
+
+    try:
+        yield
+    finally:
+        reconnect_task.cancel()
+        await asyncio.gather(reconnect_task, return_exceptions=True)
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def get_state(request: Request) -> ServerState:
+    return request.app.state.server
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/api/adapters")
+def list_adapters(request: Request):
+    state = get_state(request)
+    config = load_config()
+    result = []
+    for adapter in registry.list_adapters():
+        name = adapter.name
+        cfg = config.get(name, adapter.default_config.copy())
+        result.append(
+            {
+                "name": name,
+                "status": "RUNNING" if state.is_running(name) else "STOPPED",
+                "description": adapter.description,
+                "server_id": cfg.get("server_id", "None"),
+                "config": cfg,
+            }
+        )
+    return result
+
+
+class AdapterConfig(BaseModel):
+    config: dict
+
+
+@app.post("/api/adapters/{name}/config")
+def update_adapter_config(name: str, payload: AdapterConfig):
+    config = load_config()
+    if name not in config:
+        config[name] = {}
+    config[name].update(payload.config)
+
+    with open(CONFIG_FILE, "w") as f:
+        yaml.safe_dump(config, f)
+
+    return {"status": "success"}
+
+
+@app.get("/api/adapters/{name}/logs")
+def get_adapter_logs(name: str):
+    log_file_path = BASE_DIR / "logs" / f"{name}_output.log"
+    if not log_file_path.exists():
+        return {"logs": "No logs found."}
+    try:
+        with open(log_file_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+            return {"logs": "".join(lines[-100:])}
+    except Exception as e:
+        return {"logs": f"Error reading logs: {e}"}
+
+
+@app.post("/api/adapters/{name}/start")
+def start_adapter(name: str, request: Request):
+    config = load_config()
+    if name not in config:
+        raise HTTPException(status_code=404, detail="Adapter not found")
+    get_state(request).start_adapter(name, config[name])
+    return {"status": "started"}
+
+
+@app.post("/api/adapters/{name}/stop")
+def stop_adapter(name: str, request: Request):
+    stopped = get_state(request).stop_adapter(name)
+    return {"status": "stopped" if stopped else "already stopped"}
+
+
+class ConnectRequest(BaseModel):
+    proxy_url: str
+    server_id: str
+    password_code: str
+
+
+def load_server_config() -> dict:
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                user_cfg = yaml.safe_load(f)
+            if user_cfg and "server_config" in user_cfg:
+                return user_cfg["server_config"]
+        except Exception as e:
+            logger.error(f"Failed to load config: {e}")
+    return {}
+
+
+def save_server_config(proxy_url: str, server_id: str, password_code: str):
+    user_cfg = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                user_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    user_cfg["server_config"] = {
+        "proxy_url": proxy_url,
+        "server_id": server_id,
+        "password_code": password_code,
+    }
+
+    with open(CONFIG_FILE, "w") as f:
+        yaml.safe_dump(user_cfg, f)
+
+
+@app.post("/api/connection")
+async def connect_proxy(req: ConnectRequest, request: Request):
+    state = get_state(request)
+    try:
+        await state.connect(req.proxy_url, req.server_id, req.password_code)
+        save_server_config(req.proxy_url, req.server_id, req.password_code)
+        return {"status": "connected"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/connection")
+def get_connection(request: Request):
+    info = get_state(request).connection_info.copy()
+    info["saved_config"] = load_server_config()
+    return info
+
+
+@app.post("/api/connection/disconnect")
+async def disconnect_proxy(request: Request):
+    await get_state(request).disconnect()
+    return {"status": "disconnected"}
+
+
+@app.post("/ingest")
+async def ingest_message(
+    payload: IngestRequest, request: Request, background_tasks: BackgroundTasks
+):
+    state = get_state(request)
+    # Put into a background task which will then get executed by client
+    background_tasks.add_task(state.forward, payload.model_dump())
+    return {"status": "received"}
+
 
 if __name__ == "__main__":
-    app = TellMomTUI()
-    app.run()
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run("adapters.main:app", host=HOST, port=PORT, reload=args.reload)

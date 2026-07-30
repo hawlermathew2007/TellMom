@@ -11,11 +11,13 @@ from textual.containers import Container, Grid, Horizontal
 from textual.reactive import reactive
 from textual.widgets import Button, Footer, Header, Input, Label, Log, Static
 
+from backend.core.config import HOST, PORT
+
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-API_BASE = "http://127.0.0.1:8000/management"
-DEFAULT_LOCAL_URL = "http://127.0.0.1:8000"
+DEFAULT_LOCAL_URL = f"http://{HOST}:{PORT}"
+API_BASE = f"{DEFAULT_LOCAL_URL}/management"
 REQUEST_TIMEOUT = 10.0
 
 

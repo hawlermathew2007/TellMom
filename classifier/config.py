@@ -5,7 +5,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE = pathlib.Path(__file__).parent.resolve()
-load_dotenv(BASE / ".env")
+ENV_FILE = (
+    BASE / ".env" if pathlib.Path(BASE / ".env").exists() else BASE / ".env.example"
+)
+load_dotenv(ENV_FILE)
 
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_WS_URL = os.getenv("BACKEND_WS_URL", "ws://localhost:8000/classifier/stream")

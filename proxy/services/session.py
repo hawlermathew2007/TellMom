@@ -7,6 +7,8 @@ from typing import Any
 from pydantic import BaseModel
 from fastapi import WebSocket
 from cachetools import TTLCache
+from proxy.database.session import SessionLocal
+from proxy.database.models import ChatAlert
 
 
 logger = logging.getLogger(__name__)
@@ -96,14 +98,14 @@ async def send_proxy_ws_message(server_id: str, message: dict[str, Any]) -> None
         ) from exc
 
 
-async def handle_server_message(raw: str) -> None:
+async def handle_server_message(server_id: str, raw: str) -> None:
     message = _parse_message(raw)
     if message is None:
         return
 
     request_id = message.get("request_id")
     if request_id is None:
-        await _handle_unsolicited_message(message)
+        await _handle_unsolicited_message(server_id, message)
         return
 
     await _resolve_pending_request(request_id, message)
@@ -117,11 +119,20 @@ def _parse_message(raw: str) -> dict | None:
         return None
 
 
-async def _handle_unsolicited_message(message: dict) -> None:
+async def _handle_unsolicited_message(server_id: str, message: dict) -> None:
     msg_type = message.get("type")
 
     if msg_type in {"ws_frame", "ws_close"}:
         await _handle_ws_message(message)
+        return
+
+    if msg_type == "chat_alert":
+        db = SessionLocal()
+        try:
+            db.add(ChatAlert(server_id=server_id, alert_data=json.dumps(message.get("data", {}))))
+            db.commit()
+        finally:
+            db.close()
         return
 
     logger.warning("Server response missing request_id: %s", message)

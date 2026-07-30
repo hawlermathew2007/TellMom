@@ -11,8 +11,8 @@ from backend.services.ingest import process_ingest
 router = APIRouter(prefix="/message", tags=["message"])
 
 
-@router.post("/ingest", status_code=204)
-async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> None:
+@router.post("/ingest", status_code=200)
+async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> dict:
     try:
         await process_ingest(
             db,
@@ -23,3 +23,4 @@ async def ingest(request: IngestRequest, db: Session = Depends(get_db)) -> None:
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "received"}

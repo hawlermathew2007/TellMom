@@ -3,7 +3,16 @@ import pathlib
 from dotenv import load_dotenv
 
 BASE = pathlib.Path(__file__).parent.parent.resolve()
-load_dotenv(BASE / ".env")
+ENV_FILE = (
+    BASE / ".env" if pathlib.Path(BASE / ".env").exists() else BASE / ".env.example"
+)
+load_dotenv(ENV_FILE)
+
+HOST = os.getenv("HOST", "localhost")
+PORT = int(os.getenv("PORT", 8000))
+
+LOCAL_URL = f"http://{HOST}:{PORT}"
+PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
 
 CLASSIFIER_PASSWORD = os.getenv("CLASSIFIER_PASSWORD")
 assert CLASSIFIER_PASSWORD is not None
@@ -22,6 +31,7 @@ JWT_SECRET = os.getenv("JWT_SECRET")
 assert JWT_SECRET is not None
 
 PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
+STATE_PATH = BASE / "config.json"
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 60 * 7  # 7 days

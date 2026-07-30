@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApis, getToken, getSessionId, clearToken } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
-import { AlertWithExplanation, parseAlert, parseAlerts } from "./lib/parseAlert";
+import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
 import { useSettings } from "./hooks/useSettings";
 import { playAlertSound } from "./lib/sound";
+import { AlertResponseFromJSON } from "./apis";
+
 
 // Component imports
 import Sidebar from "./components/Sidebar";
@@ -76,7 +78,7 @@ export default function App() {
             const [me, kids, alertLogs] = await Promise.all([
                 apis.auth.getMeAuthMeGet(),
                 apis.children.listChildrenChildrenGet(),
-                apis.alerts.listAlertsAlertsGet().then(parseAlerts)
+                apis.alerts.listAlertsAlertsGet().then((alerts) => alerts.map(parseAlert))
             ]);
 
             setParent(me);
@@ -168,7 +170,7 @@ export default function App() {
 
                     // Check if payload is an alert notification
                     if (raw.type === "alert" || raw.id !== undefined) {
-                        const newAlert = parseAlert(raw);
+                        const newAlert = parseAlert(AlertResponseFromJSON(raw));
 
                         // Play notification audio ping
                         if (settings.soundEnabled) {
