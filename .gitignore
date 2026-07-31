@@ -8,6 +8,9 @@ adapters/roblox/Packages
 
 sourcemap.json
 
+# Settings.json
+.claude
+
 # Full-stack
 .env
 __pycache__
