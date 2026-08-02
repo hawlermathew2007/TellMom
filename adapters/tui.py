@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import httpx
-from adapters.config import API_URL, PROXY_URL
+import asyncio
+from typing import Any
+
+from adapters.config import PROXY_URL, WS_URL
+from shared.services.state_client import CommandError, StateStreamClient
+from textual import work
 from textual.app import App, ComposeResult
 from textual.widgets import (
     Header,
@@ -14,9 +18,9 @@ from textual.widgets import (
     Checkbox,
     Static,
 )
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.binding import Binding
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.reactive import reactive
 
 
@@ -134,6 +138,10 @@ class ConfigModal(ModalScreen[dict]):
         border: solid $secondary;
         padding: 1 2;
     }
+    #config_scroll {
+        height: 1fr;
+        min-height: 5;
+    }
     .config_input {
         margin-bottom: 1;
     }
@@ -143,6 +151,7 @@ class ConfigModal(ModalScreen[dict]):
     #config_buttons {
         margin-top: 1;
         height: auto;
+        align: right middle;
     }
     #config_error {
         color: $error;
@@ -159,23 +168,28 @@ class ConfigModal(ModalScreen[dict]):
     def compose(self) -> ComposeResult:
         with Vertical(id="config_container"):
             yield Label(f"Configure {self.adapter_name}", classes="header")
-            if not self.config_data:
-                yield Label("This adapter has no configurable options.")
-            for key, val in self.config_data.items():
-                if isinstance(val, bool):
-                    cb = Checkbox(key, value=val, id=f"cfg_{key}")
-                    self.inputs[key] = cb
-                    yield cb
-                else:
-                    yield Label(key, classes="config_label")
-                    inp = Input(
-                        value=str(val),
-                        placeholder=key,
-                        id=f"cfg_{key}",
-                        classes="config_input",
-                    )
-                    self.inputs[key] = inp
-                    yield inp
+
+            # Scrollable container for dynamically generated inputs
+            with VerticalScroll(id="config_scroll"):
+                if not self.config_data:
+                    yield Label("This adapter has no configurable options.")
+                for key, val in self.config_data.items():
+                    if isinstance(val, bool):
+                        cb = Checkbox(key, value=val, id=f"cfg_{key}")
+                        self.inputs[key] = cb
+                        yield cb
+                    else:
+                        yield Label(key, classes="config_label")
+                        inp = Input(
+                            value=str(val),
+                            placeholder=key,
+                            id=f"cfg_{key}",
+                            classes="config_input",
+                        )
+                        self.inputs[key] = inp
+                        yield inp
+
+            # Fixed footer elements (always visible)
             yield Label("", id="config_error")
             with Horizontal(id="config_buttons"):
                 yield Button("Save", id="save_cfg_btn", variant="success")
@@ -261,10 +275,15 @@ class TellMomTUI(App):
 
     def __init__(self):
         super().__init__()
-        self.client = httpx.AsyncClient(timeout=5.0)
+        self.client = StateStreamClient(
+            WS_URL,
+            on_snapshot=self.apply_snapshot,
+            on_status=self.on_stream_status,
+        )
         self.adapter_configs: dict[str, dict] = {}
         self.adapter_autostart: dict[str, bool] = {}
         self.initial_config_loaded: bool = False
+        self.stream_online: bool | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -285,7 +304,10 @@ class TellMomTUI(App):
                 yield Label("Connection to Remote Proxy", classes="section_header")
                 yield Label("Status: Checking...", id="conn_status")
                 yield Input(
-                    value=PROXY_URL, placeholder="Proxy URL", id="input_proxy_url", classes="input_row"
+                    value=PROXY_URL,
+                    placeholder="Proxy URL",
+                    id="input_proxy_url",
+                    classes="input_row",
                 )
                 yield Input(
                     placeholder="Server ID", id="input_server_id", classes="input_row"
@@ -305,11 +327,20 @@ class TellMomTUI(App):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_columns("Name", "Status", "Autostart", "Description", "Server ID")
-        self.update_data()
-        self.set_interval(2.0, self.update_data)
+        self.stream_state()
+
+    @work(exclusive=True)
+    async def stream_state(self) -> None:
+        """Hold the adapter websocket open; the server pushes what changed."""
+        await self.client.run()
+
+    @property
+    def base_screen(self) -> Screen:
+        """The main screen: pushed state keeps rendering while a modal is open."""
+        return self.screen_stack[0]
 
     def get_selected_adapter(self) -> str | None:
-        table = self.query_one(DataTable)
+        table = self.base_screen.query_one(DataTable)
         if table.row_count == 0:
             return None
         try:
@@ -318,104 +349,116 @@ class TellMomTUI(App):
             return None
 
     def log_line(self, message: str) -> None:
-        self.query_one("#logs_panel", Log).write_line(message)
+        self.base_screen.query_one("#logs_panel", Log).write_line(message)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         name = self.get_selected_adapter()
-        self.query_one("#selected_adapter_line", Static).update(
+        self.base_screen.query_one("#selected_adapter_line", Static).update(
             f"Selected: {name}" if name else "Selected: (none)"
         )
 
-    async def update_data(self) -> None:
+    def apply_snapshot(self, data: dict[str, Any]) -> None:
+        self.render_adapters(data.get("adapters") or [])
+        self.render_connection(data.get("connection") or {})
+
+    def render_adapters(self, adapters: list[dict]) -> None:
+        table = self.base_screen.query_one(DataTable)
+        cursor_row = table.cursor_coordinate.row
+        table.clear()
+        for adp in adapters:
+            name = adp["name"]
+            config = adp.get("config", {})
+            self.adapter_configs[name] = config
+            autostart = bool(config.get("auto_start", False))
+            self.adapter_autostart[name] = autostart
+            status = (
+                f"[green]{adp['status']}[/]"
+                if adp["status"] == "RUNNING"
+                else f"[red]{adp['status']}[/]"
+            )
+            autostart_display = "[green]on[/]" if autostart else "[grey50]off[/]"
+            table.add_row(
+                name,
+                status,
+                autostart_display,
+                adp["description"],
+                adp["server_id"],
+            )
+        if table.row_count and cursor_row < table.row_count:
+            table.move_cursor(row=cursor_row)
+
+    def render_connection(self, conn: dict) -> None:
+        status = conn.get("status", "Unknown")
+        color = (
+            "green" if status == "Connected" else "red" if "Error" in status else "yellow"
+        )
+        screen = self.base_screen
+        screen.query_one("#conn_status", Label).update(f"Status: [{color}]{status}[/]")
+
+        # Only on the first snapshot: later ones must not overwrite typing.
+        if self.initial_config_loaded:
+            return
+        saved_config = conn.get("saved_config") or {}
+        if saved_config:
+            screen.query_one("#input_proxy_url", Input).value = saved_config.get(
+                "proxy_url", PROXY_URL
+            )
+            screen.query_one("#input_server_id", Input).value = saved_config.get(
+                "server_id", ""
+            )
+            screen.query_one("#input_password", Input).value = saved_config.get(
+                "password_code", ""
+            )
+        self.initial_config_loaded = True
+
+    def on_stream_status(self, connected: bool, message: str) -> None:
+        if connected == self.stream_online:
+            return
+        self.stream_online = connected
+
+        if connected:
+            self.log_line("Connected to adapter service stream.")
+            return
+
+        self.base_screen.query_one("#conn_status", Label).update(
+            "Status: [red]Adapter service offline[/]"
+        )
+        self.log_line(f"Adapter service stream offline ({message}). Retrying…")
+
+    async def run_action_command(self, action: str, label: str, **params: Any) -> bool:
+        """Send one command over the stream and report how it went."""
         try:
-            resp = await self.client.get(f"{API_URL}/adapters")
-            if resp.status_code == 200:
-                adapters = resp.json()
-                table = self.query_one(DataTable)
-                cursor_row = table.cursor_coordinate.row
-                table.clear()
-                for adp in adapters:
-                    name = adp["name"]
-                    config = adp.get("config", {})
-                    self.adapter_configs[name] = config
-                    autostart = bool(config.get("auto_start", False))
-                    self.adapter_autostart[name] = autostart
-                    status = (
-                        f"[green]{adp['status']}[/]"
-                        if adp["status"] == "RUNNING"
-                        else f"[red]{adp['status']}[/]"
-                    )
-                    autostart_display = (
-                        "[green]on[/]" if autostart else "[grey50]off[/]"
-                    )
-                    table.add_row(
-                        name,
-                        status,
-                        autostart_display,
-                        adp["description"],
-                        adp["server_id"],
-                    )
-                if table.row_count and cursor_row < table.row_count:
-                    table.move_cursor(row=cursor_row)
-
-            resp = await self.client.get(f"{API_URL}/connection")
-            if resp.status_code == 200:
-                conn = resp.json()
-                status_label = self.query_one("#conn_status", Label)
-                color = (
-                    "green"
-                    if conn["status"] == "Connected"
-                    else "red"
-                    if "Error" in conn["status"]
-                    else "yellow"
-                )
-                status_label.update(f"Status: [{color}]{conn['status']}[/]")
-
-                if not self.initial_config_loaded:
-                    saved_config = conn.get("saved_config", {})
-                    if saved_config:
-                        self.query_one("#input_proxy_url", Input).value = saved_config.get("proxy_url", PROXY_URL)
-                        self.query_one("#input_server_id", Input).value = saved_config.get("server_id", "")
-                        self.query_one("#input_password", Input).value = saved_config.get("password_code", "")
-                    self.initial_config_loaded = True
-
+            await self.client.request(action, **params)
+        except CommandError as e:
+            self.log_line(f"{label} failed: {e}")
+        except ConnectionError:
+            self.log_line(f"{label} failed: adapter service is offline.")
+        except asyncio.TimeoutError:
+            self.log_line(f"{label} timed out.")
         except Exception as e:
-            self.log_line(f"Error fetching data: {e}")
+            self.log_line(f"{label} failed: {e}")
+        else:
+            self.log_line(f"{label} ok.")
+            return True
+        return False
 
     async def action_start_adapter(self) -> None:
         name = self.get_selected_adapter()
         if not name:
             return
-        try:
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/start")
-            self.log_line(f"Start {name}: {resp.status_code}")
-            await self.update_data()
-        except Exception as e:
-            self.log_line(f"Failed to start {name}: {e}")
+        await self.run_action_command("start_adapter", f"Start {name}", name=name)
 
     async def action_stop_adapter(self) -> None:
         name = self.get_selected_adapter()
         if not name:
             return
-        try:
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/stop")
-            self.log_line(f"Stop {name}: {resp.status_code}")
-            await self.update_data()
-        except Exception as e:
-            self.log_line(f"Failed to stop {name}: {e}")
+        await self.run_action_command("stop_adapter", f"Stop {name}", name=name)
 
     async def action_restart_adapter(self) -> None:
         name = self.get_selected_adapter()
         if not name:
             return
-        try:
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/stop")
-            self.log_line(f"Stop {name}: {resp.status_code}")
-            resp = await self.client.post(f"{API_URL}/adapters/{name}/start")
-            self.log_line(f"Start {name}: {resp.status_code}")
-            await self.update_data()
-        except Exception as e:
-            self.log_line(f"Failed to restart {name}: {e}")
+        await self.run_action_command("restart_adapter", f"Restart {name}", name=name)
 
     async def action_configure_adapter(self) -> None:
         name = self.get_selected_adapter()
@@ -430,27 +473,19 @@ class TellMomTUI(App):
         self.push_screen(ConfigModal(name, config), check_result)
 
     def save_adapter_config(self, name: str, new_config: dict) -> None:
-        async def do_save():
-            try:
-                resp = await self.client.post(
-                    f"{API_URL}/adapters/{name}/config", json={"config": new_config}
-                )
-                if resp.status_code == 200:
-                    self.log_line(f"Saved config for {name}.")
-                    await self.update_data()
-                else:
-                    self.log_line(f"Failed to save config: {resp.text}")
-            except Exception as e:
-                self.log_line(f"Error saving config: {e}")
-
-        self.run_worker(do_save())
+        self.run_worker(
+            self.run_action_command(
+                "set_adapter_config",
+                f"Save config for {name}",
+                name=name,
+                config=new_config,
+            )
+        )
 
     async def fetch_adapter_logs(self, name: str) -> str:
         try:
-            resp = await self.client.get(f"{API_URL}/adapters/{name}/logs")
-            if resp.status_code == 200:
-                return resp.json().get("logs", "")
-            self.log_line(f"Failed to get logs for {name}: {resp.status_code}")
+            result = await self.client.request("adapter_logs", name=name)
+            return result.get("logs", "")
         except Exception as e:
             self.log_line(f"Error getting logs: {e}")
         return ""
@@ -481,39 +516,26 @@ class TellMomTUI(App):
             await self._disconnect()
 
     async def _connect(self) -> None:
-        proxy_url = self.query_one("#input_proxy_url", Input).value
-        server_id = self.query_one("#input_server_id", Input).value
-        password = self.query_one("#input_password", Input).value
+        screen = self.base_screen
+        proxy_url = screen.query_one("#input_proxy_url", Input).value
+        server_id = screen.query_one("#input_server_id", Input).value
+        password = screen.query_one("#input_password", Input).value
 
         if not proxy_url or not server_id or not password:
             self.log_line("Please fill all connection fields.")
             return
 
         self.log_line("Connecting...")
-        try:
-            resp = await self.client.post(
-                f"{API_URL}/connection",
-                json={
-                    "proxy_url": proxy_url,
-                    "server_id": server_id,
-                    "password_code": password,
-                },
-            )
-            if resp.status_code == 200:
-                self.log_line("Connected successfully!")
-            else:
-                self.log_line(f"Connection failed: {resp.text}")
-            await self.update_data()
-        except Exception as e:
-            self.log_line(f"Connection error: {e}")
+        await self.run_action_command(
+            "connect",
+            "Connect to proxy",
+            proxy_url=proxy_url,
+            server_id=server_id,
+            password_code=password,
+        )
 
     async def _disconnect(self) -> None:
-        try:
-            await self.client.post(f"{API_URL}/connection/disconnect")
-            self.log_line("Disconnected.")
-            await self.update_data()
-        except Exception as e:
-            self.log_line(f"Disconnect error: {e}")
+        await self.run_action_command("disconnect", "Disconnect from proxy")
 
     async def on_unmount(self) -> None:
         await self.client.aclose()

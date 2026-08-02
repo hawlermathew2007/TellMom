@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
@@ -6,6 +7,7 @@ from backend.services.classifier_stream import classifier_stream
 from backend.routers import alerts, auth, children, message, classifier, management
 from backend.services.proxy_manager import proxy_manager
 from backend.services.proxy_agent import load_state, ProxyState
+from backend.services.status_hub import management_hub
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -35,7 +37,14 @@ async def lifespan(_: FastAPI):
         logger.debug("Classifier connected successfully")
     except ConnectionError:
         logger.debug("Classifier not connected at startup — will retry on ingest")
-    yield
+
+    # Pushes status changes to /management/ws subscribers so nobody polls for them.
+    watcher = asyncio.create_task(management_hub.run_watcher())
+    try:
+        yield
+    finally:
+        watcher.cancel()
+        await asyncio.gather(watcher, return_exceptions=True)
 
 
 app = FastAPI(title="TellMom API", lifespan=lifespan)
