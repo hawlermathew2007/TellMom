@@ -27,6 +27,7 @@ from shared.schemas.messages import (
     AuthResponse,
     DhResponse,
 )
+from cachetools import LFUCache
 from pydantic import BaseModel
 from backend.core.config import STATE_PATH, PROXY_URL, LOCAL_URL
 
@@ -42,7 +43,7 @@ class ProxyAgent:
         self.server_id: str | None = None
         self.access_token: str | None = None
         self.websocket: websockets.ClientConnection | None = None
-        self.session_states: dict[str, SessionState] = {}
+        self.session_states = LFUCache(maxsize=100)
         self.active_ws: dict[str, websockets.ClientConnection] = {}
         self.status = "disconnected"
         self._stopped = False
