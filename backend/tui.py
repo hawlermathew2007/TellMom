@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, fields
 from typing import Any
 
-import httpx
 from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container, Grid, Horizontal
@@ -12,12 +12,16 @@ from textual.reactive import reactive
 from textual.widgets import Button, Footer, Header, Input, Label, Log, Static
 
 from backend.core.config import HOST, PORT
+from shared.services.state_client import (
+    CommandError,
+    StateStreamClient,
+    websocket_url,
+)
 
-logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOCAL_URL = f"http://{HOST}:{PORT}"
-API_BASE = f"{DEFAULT_LOCAL_URL}/management"
+MANAGEMENT_WS_URL = websocket_url(DEFAULT_LOCAL_URL, "/management/ws")
 REQUEST_TIMEOUT = 10.0
 
 
@@ -172,6 +176,17 @@ class BackendTUI(App):
     server_id: reactive[str] = reactive("")
     passcode: reactive[str] = reactive("")
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.client = StateStreamClient(
+            MANAGEMENT_WS_URL,
+            on_snapshot=self.apply_snapshot,
+            on_status=self.on_stream_status,
+            request_timeout=REQUEST_TIMEOUT,
+        )
+        self.config_loaded = False
+        self.stream_online: bool | None = None
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
 
@@ -251,8 +266,15 @@ class BackendTUI(App):
             yield Button("Renew Passcode", id="btn-renew-passcode", variant="warning")
 
     def on_mount(self) -> None:
-        self.fetch_state_and_status()
-        self.set_interval(5.0, self.fetch_status_only)
+        self.stream_state()
+
+    @work(exclusive=True)
+    async def stream_state(self) -> None:
+        """Hold the management websocket open; status arrives as it changes."""
+        await self.client.run()
+
+    async def on_unmount(self) -> None:
+        await self.client.aclose()
 
     def watch_proxy_text(self, status: str) -> None:
         widget = self.query_one("#proxy-display", Static)
@@ -345,71 +367,52 @@ class BackendTUI(App):
             config.local_url or DEFAULT_LOCAL_URL
         )
 
-    @work(exclusive=True)
-    async def fetch_state_and_status(self) -> None:
-        try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                res = await client.get(f"{API_BASE}/state")
-                if res.status_code == 200:
-                    data = res.json()
-                    self.passcode = data.get("password_code", "")
-                    self._apply_config_to_inputs(ConfigState.from_api(data))
-                await self.fetch_status_only()
-        except httpx.ConnectError:
-            self.proxy_text = "Backend Offline"
-            self.log_message(
-                "Could not connect to backend. Is the FastAPI service running on port 8000?"
-            )
-        except Exception as e:
-            self.log_message(f"Error fetching state: {e}")
+    def apply_snapshot(self, data: dict[str, Any]) -> None:
+        self.proxy_text = data.get("status") or "Unknown"
+        self.classifier_text = data.get("classifier_status") or "Unknown"
+        self.server_id = data.get("server_id") or ""
 
-    @work(exclusive=True)
-    async def fetch_status_only(self) -> None:
-        try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                res = await client.get(f"{API_BASE}/status")
-                if res.status_code == 200:
-                    data = res.json()
-                    self.proxy_text = data.get("status", "Unknown")
-                    self.classifier_text = data.get("classifier_status", "Unknown")
-                    self.server_id = data.get("server_id", "")
-        except httpx.ConnectError:
-            self.proxy_text = "Backend Offline"
-            self.classifier_text = "Backend Offline"
-        except Exception:
-            pass
+        config = data.get("config") or {}
+        self.passcode = config.get("password_code", "")
+        # Only on the first snapshot: later ones must not overwrite typing.
+        if not self.config_loaded:
+            self._apply_config_to_inputs(ConfigState.from_api(config))
+            self.config_loaded = True
 
-    @work(exclusive=True)
-    async def do_api_call(
+    def on_stream_status(self, connected: bool, message: str) -> None:
+        if connected == self.stream_online:
+            return
+        self.stream_online = connected
+
+        if connected:
+            self.log_message("Connected to backend management stream.")
+            return
+
+        self.proxy_text = "Backend Offline"
+        self.classifier_text = "Backend Offline"
+        self.log_message(
+            f"Management stream offline ({message}). "
+            "Is the FastAPI service running on port 8000?"
+        )
+
+    @work
+    async def send_command(
         self,
-        method: str,
-        endpoint: str,
+        action: str,
         start_msg: str,
         success_msg: str,
-        json_data: dict | None = None,
+        params: dict[str, Any] | None = None,
     ) -> None:
         self.log_message(start_msg)
         try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                if method == "POST":
-                    res = await client.post(f"{API_BASE}{endpoint}", json=json_data)
-                elif method == "GET":
-                    res = await client.get(f"{API_BASE}{endpoint}")
-                else:
-                    self.log_message(f"Unsupported method: {method}")
-                    return
-
-                if res.status_code != 200:
-                    self.log_message(f"Error ({res.status_code}): {res.text}")
-                    return
-
-                self.log_message(success_msg)
-                if endpoint == "/renew_passcode":
-                    self.passcode = res.json().get("passcode", self.passcode)
-
-                await self.fetch_status_only()
-        except httpx.ConnectError:
+            await self.client.request(action, **(params or {}))
+            self.log_message(success_msg)
+        except CommandError as e:
+            self.log_message(f"Error: {e}")
+        except ConnectionError:
             self.log_message("Connection error: backend is offline.")
+        except asyncio.TimeoutError:
+            self.log_message(f"Timed out waiting for '{action}'.")
         except Exception as e:
             self.log_message(f"Exception: {e}")
 
@@ -419,8 +422,8 @@ class BackendTUI(App):
             await handler(self)
 
     async def _handle_renew_passcode(self) -> None:
-        self.do_api_call(
-            "POST", "/renew_passcode", "Renewing passcode…", "Passcode renewed."
+        self.send_command(
+            "renew_passcode", "Renewing passcode…", "Passcode renewed."
         )
 
     async def _handle_set_config(self) -> None:
@@ -429,26 +432,23 @@ class BackendTUI(App):
             self.log_message("All configuration fields are required.")
             self.notify("Fill in every field before saving.", severity="warning")
             return
-        self.do_api_call(
-            "POST",
-            "/state",
+        self.send_command(
+            "set_config",
             "Saving configuration…",
             "Configuration saved.",
             config.as_payload(),
         )
 
     async def _handle_register(self) -> None:
-        self.do_api_call(
-            "POST", "/register", "Registering on proxy…", "Registration complete."
+        self.send_command(
+            "register", "Registering on proxy…", "Registration complete."
         )
 
     async def _handle_login(self) -> None:
-        self.do_api_call("POST", "/login", "Logging in…", "Login complete.")
+        self.send_command("login", "Logging in…", "Login complete.")
 
     async def _handle_connect(self) -> None:
-        self.do_api_call(
-            "POST", "/connect", "Connecting to proxy websocket…", "Connected."
-        )
+        self.send_command("connect", "Connecting to proxy websocket…", "Connected.")
 
     async def _handle_copy_server_id(self) -> None:
         self.copy_value_to_clipboard("Server ID", self.server_id)

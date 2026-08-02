@@ -12,6 +12,7 @@ HOST = os.getenv("HOST", "localhost")
 PORT = int(os.getenv("PORT", 8001))
 PROXY_URL = os.getenv("PROXY_URL", "http://localhost:8080")
 API_URL = f"http://{HOST}:{PORT}/api"
+WS_URL = f"ws://{HOST}:{PORT}/api/ws"
 
 CONFIG_FILE = BASE_DIR / "config.yaml"
 RECONNECT_INTERVAL = 5
