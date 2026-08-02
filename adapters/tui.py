@@ -179,7 +179,12 @@ class ConfigModal(ModalScreen[dict]):
                         self.inputs[key] = cb
                         yield cb
                     else:
-                        yield Label(key, classes="config_label")
+                        label_text = (
+                            f"{key} (leave blank to auto-use local server)"
+                            if key == "local_ingest_url"
+                            else key
+                        )
+                        yield Label(label_text, classes="config_label")
                         inp = Input(
                             value=str(val),
                             placeholder=key,

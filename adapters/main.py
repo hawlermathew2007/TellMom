@@ -136,9 +136,12 @@ class ServerState:
         log_file_path = BASE_DIR / "logs" / f"{name}_output.log"
         log_file_path.parent.mkdir(exist_ok=True, parents=True)
         log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
+        # A blank local_ingest_url means "use the local server"; a saved,
+        # non-blank value (set via the TUI) takes priority over that default.
         launch_config = {
             **config,
-            "local_ingest_url": f"{self.local_ingest_url}/ingest",
+            "local_ingest_url": config.get("local_ingest_url")
+            or f"{self.local_ingest_url}/ingest",
         }
         self.processes[name] = adapter.launch(launch_config, log_file)
 

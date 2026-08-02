@@ -12,7 +12,6 @@ from typing import Optional, Dict, Any
 
 import httpx
 from adapters.base import BaseAdapter
-from adapters.config import HOST, PORT
 
 
 logging.basicConfig(
@@ -172,8 +171,8 @@ class MinecraftAdapter(BaseAdapter):
             name="minecraft",
             display_name="Minecraft Log Tailer",
             default_config={
-                "log_path": "~/.minecraft/logs/latest.log",
-                "local_ingest_url": f"http://{HOST}:{PORT}/ingest",
+                "log_path": str(Path().home() / ".minecraft" / "logs" / "latest.log"),
+                "local_ingest_url": "",
                 "server_id": "my-survival-server",
                 "poll_interval": 1.0,
                 "max_retries": 5,

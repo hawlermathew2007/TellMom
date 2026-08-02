@@ -29,7 +29,7 @@ class DiscordAdapter(BaseAdapter):
             display_name="Discord Bot",
             default_config={
                 "bot_token": "",
-                "local_ingest_url": "http://localhost:8000/ingest",
+                "local_ingest_url": "",
                 "server_id": "my-discord-server",
                 "auto_start": False,
             },
