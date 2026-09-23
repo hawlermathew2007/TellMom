@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TellMom · Build booklet</title>
+  <meta name="description" content="TellMom flags grooming in your child's game chat. It runs on a Raspberry Pi at home, and the Leesin proxy in the middle relays only what it can't read.">
+  <meta name="theme-color" content="#c4e3f3">
+  <!-- Where the live playground sends chats. Nginx routes this to the demo classifier. -->
+  <meta name="tellmom-playground" content="/api/playground">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<svg class="iso visually-hidden" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-pi" viewBox="0 0 120 120"><polygon fill="#3f8f5a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="48.1,25.4 116.1,64.6 72.1,90.0 4.1,50.8"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="116.1,69.2 72.1,94.6 72.1,90.0 116.1,64.6"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="4.1,55.4 72.1,94.6 72.1,90.0 4.1,50.8"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="58.1,42.7 74.1,51.9 58.1,61.2 42.1,51.9"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="74.1,56.5 58.1,65.8 58.1,61.2 74.1,51.9"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="42.1,56.5 58.1,65.8 58.1,61.2 42.1,51.9"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="53.7,25.8 56.5,27.4 53.7,29.1 50.9,27.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="56.5,33.0 53.7,34.6 53.7,29.1 56.5,27.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="50.9,33.0 53.7,34.6 53.7,29.1 50.9,27.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="58.9,28.8 61.7,30.4 58.9,32.1 56.1,30.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="61.7,36.0 58.9,37.6 58.9,32.1 61.7,30.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="56.1,36.0 58.9,37.6 58.9,32.1 56.1,30.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="64.1,31.8 66.9,33.4 64.1,35.1 61.3,33.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="66.9,39.0 64.1,40.6 64.1,35.1 66.9,33.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="61.3,39.0 64.1,40.6 64.1,35.1 61.3,33.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="69.3,34.8 72.1,36.4 69.3,38.1 66.5,36.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="72.1,42.0 69.3,43.6 69.3,38.1 72.1,36.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="66.5,42.0 69.3,43.6 69.3,38.1 66.5,36.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="74.5,37.8 77.3,39.4 74.5,41.1 71.7,39.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="77.3,45.0 74.5,46.6 74.5,41.1 77.3,39.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="71.7,45.0 74.5,46.6 74.5,41.1 71.7,39.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="79.7,40.8 82.5,42.4 79.7,44.1 76.9,42.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="82.5,48.0 79.7,49.6 79.7,44.1 82.5,42.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="76.9,48.0 79.7,49.6 79.7,44.1 76.9,42.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="84.9,43.8 87.7,45.5 84.9,47.1 82.1,45.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="87.7,51.0 84.9,52.6 84.9,47.1 87.7,45.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="82.1,51.0 84.9,52.6 84.9,47.1 82.1,45.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="90.1,46.8 92.9,48.5 90.1,50.1 87.3,48.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="92.9,54.0 90.1,55.6 90.1,50.1 92.9,48.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="87.3,54.0 90.1,55.6 90.1,50.1 87.3,48.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="95.3,49.8 98.1,51.5 95.3,53.1 92.5,51.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="98.1,57.0 95.3,58.6 95.3,53.1 98.1,51.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="92.5,57.0 95.3,58.6 95.3,53.1 92.5,51.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="100.5,52.8 103.3,54.5 100.5,56.1 97.7,54.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="103.3,60.0 100.5,61.6 100.5,56.1 103.3,54.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="97.7,60.0 100.5,61.6 100.5,56.1 97.7,54.5"/><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="96.1,48.5 110.1,56.5 98.1,63.5 84.1,55.4"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="110.1,68.1 98.1,75.0 98.1,63.5 110.1,56.5"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="84.1,66.9 98.1,75.0 98.1,63.5 84.1,55.4"/><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="78.1,58.8 92.1,66.9 80.1,73.9 66.1,65.8"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="92.1,78.5 80.1,85.4 80.1,73.9 92.1,66.9"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="66.1,77.3 80.1,85.4 80.1,73.9 66.1,65.8"/></symbol>
+    <symbol id="i-backend" viewBox="0 0 120 120"><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="53.4,44.7 106.3,75.3 66.6,98.2 13.7,67.6"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="106.3,93.1 66.6,116.0 66.6,98.2 106.3,75.3"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="13.7,85.5 66.6,116.0 66.6,98.2 13.7,67.6"/><line fill="none" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="99.7" y1="88.0" x2="82.0" y2="98.2"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M72.0,102.9 A2.8,1.6 0 0 0 77.6,102.9 L77.6,102.9 L72.0,102.9 Z"/><ellipse fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="74.8" cy="102.9" rx="2.8" ry="1.6"/><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="53.4,24.4 106.3,54.9 66.6,77.8 13.7,47.3"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="106.3,72.7 66.6,95.6 66.6,77.8 106.3,54.9"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="13.7,65.1 66.6,95.6 66.6,77.8 13.7,47.3"/><line fill="none" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="99.7" y1="67.6" x2="82.0" y2="77.8"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M72.0,82.5 A2.8,1.6 0 0 0 77.6,82.5 L77.6,82.5 L72.0,82.5 Z"/><ellipse fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="74.8" cy="82.5" rx="2.8" ry="1.6"/><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="53.4,4.0 106.3,34.5 66.6,57.5 13.7,26.9"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="106.3,52.4 66.6,75.3 66.6,57.5 106.3,34.5"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="13.7,44.7 66.6,75.3 66.6,57.5 13.7,26.9"/><line fill="none" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="99.7" y1="47.3" x2="82.0" y2="57.5"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M72.0,62.2 A2.8,1.6 0 0 0 77.6,62.2 L77.6,62.2 L72.0,62.2 Z"/><ellipse fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="74.8" cy="62.2" rx="2.8" ry="1.6"/></symbol>
+    <symbol id="i-classifier" viewBox="0 0 120 120"><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="60.0,19.6 116.0,51.9 60.0,84.2 4.0,51.9"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="116.0,68.1 60.0,100.4 60.0,84.2 116.0,51.9"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="4.0,68.1 60.0,100.4 60.0,84.2 4.0,51.9"/><path fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M33.6,51.9 A26.4,15.2 0 0 0 86.4,51.9 L86.4,43.8 L33.6,43.8 Z"/><ellipse fill="#c4e3f3" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="60.0" cy="43.8" rx="26.4" ry="15.2"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M46.8,43.8 A13.2,7.6 0 0 0 73.2,43.8 L73.2,30.4 L46.8,30.4 Z"/><ellipse fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="60.0" cy="30.4" rx="13.2" ry="7.6"/></symbol>
+    <symbol id="i-proxy" viewBox="0 0 120 120"><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="49.0,7.6 111.1,43.4 68.1,68.3 6.0,32.4"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="111.1,87.6 68.1,112.4 68.1,68.3 111.1,43.4"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="6.0,76.6 68.1,112.4 68.1,68.3 6.0,32.4"/><polygon fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="113.0,68.3 68.1,94.2 68.1,83.2 113.0,57.2"/><polygon fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="4.1,57.2 68.1,94.2 68.1,83.2 4.1,46.2"/><polygon fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="97.3,66.3 116.0,88.6 101.3,97.1 90.5,78.5"/></symbol>
+    <symbol id="i-game" viewBox="0 0 120 120"><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="39.6,21.8 115.9,65.9 80.3,86.5 3.9,42.4"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="115.9,77.6 80.3,98.2 80.3,86.5 115.9,65.9"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="3.9,54.1 80.3,98.2 80.3,86.5 3.9,42.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="39.6,26.5 54.8,35.3 49.8,38.2 34.5,29.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="54.8,39.4 49.8,42.4 49.8,38.2 54.8,35.3"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="34.5,33.5 49.8,42.4 49.8,38.2 34.5,29.4"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="53.6,27.2 58.7,30.2 40.8,40.5 35.8,37.5"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="58.7,34.3 40.8,44.6 40.8,40.5 58.7,30.2"/><polygon fill="#2a3240" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="35.8,41.6 40.8,44.6 40.8,40.5 35.8,37.5"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M77.8,58.5 A5.0,2.9 0 0 0 87.9,58.5 L87.9,55.0 L77.8,55.0 Z"/><ellipse fill="#cf2a16" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="82.8" cy="55.0" rx="5.0" ry="2.9"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M80.4,68.8 A5.0,2.9 0 0 0 90.4,68.8 L90.4,65.3 L80.4,65.3 Z"/><ellipse fill="#ffcf1a" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="85.4" cy="65.3" rx="5.0" ry="2.9"/><path fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M65.1,65.9 A5.0,2.9 0 0 0 75.2,65.9 L75.2,62.4 L65.1,62.4 Z"/><ellipse fill="#c4e3f3" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" cx="70.1" cy="62.4" rx="5.0" ry="2.9"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 120 120"><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="49.1,48.0 114.4,85.8 70.8,111.0 5.5,73.2"/><polygon fill="#e8f4fa" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="114.4,90.8 70.8,116.0 70.8,111.0 114.4,85.8"/><polygon fill="#a9d3ea" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="5.5,78.2 70.8,116.0 70.8,111.0 5.5,73.2"/><polygon fill="#ffffff" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="46.9,49.3 7.6,72.0 7.6,26.7 46.9,4.0"/><polygon fill="#c4e3f3" stroke="#14181f" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="42.5,46.8 12.0,64.4 12.0,29.2 42.5,11.6"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <a class="wordmark" href="#top" aria-label="TellMom, back to the cover">
+    <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-proxy"/></svg>
+    TellMom
+  </a>
+  <nav class="topnav" aria-label="Booklet contents">
+    <a href="/app/">Dashboard</a>
+  </nav>
+  <a class="btn" href="#build">Start building</a>
+</header>
+
+<main id="top">
+
+  <!-- 1 · Cover -->
+  <section class="page cover" aria-labelledby="cover-title">
+    <div class="page-inner">
+      <div class="cover-grid">
+        <div class="cover-copy">
+          <h1 id="cover-title">TellMom</h1>
+          <p class="promise">Let them play. TellMom quietly watches their game chat for signs of grooming and tells you early. It runs on a Raspberry Pi in your home, and the relay in the middle is <mark>built to know nothing</mark>.</p>
+          <div class="cover-actions">
+            <a class="btn" href="#build">
+              Start building
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+            <a class="btn-quiet" href="#playground">Try it on a sample chat</a>
+          </div>
+        </div>
+
+        <div class="collage">
+          <figure class="snap snap-main">
+            <picture>
+              <source srcset="public/img/kids-circle.webp" type="image/webp">
+              <img src="public/img/kids-circle.jpg" width="1600" height="1068" fetchpriority="high" alt="A group of children laughing as they play a circle game outdoors, holding hands.">
+            </picture>
+          </figure>
+          <figure class="snap snap-game">
+            <picture>
+              <source srcset="public/img/kids-gaming.webp" type="image/webp">
+              <img src="public/img/kids-gaming.jpg" width="900" height="600" loading="lazy" alt="Two boys on a couch, wide-eyed and absorbed in a video game.">
+            </picture>
+          </figure>
+          <figure class="snap snap-laugh">
+            <picture>
+              <source srcset="public/img/kid-laughing.webp" type="image/webp">
+              <img src="public/img/kid-laughing.jpg" width="700" height="467" loading="lazy" alt="A girl lying in the grass, laughing.">
+            </picture>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2–3 · Protocol -->
+  <section class="page" id="protocol" aria-labelledby="protocol-title">
+    <div class="page-inner">
+      <div class="protocol-head">
+        <h2 id="protocol-title">The Leesin protocol</h2>
+        <p class="lede">Lee Sin fights blindfolded, and so does our proxy. Every message between your Pi and your screen travels in a <strong>locked box</strong>. The proxy carries the box, but only your home and your screen have the key.</p>
+      </div>
+
+      <div class="route" id="route">
+        <div class="pipe" aria-hidden="true"><div class="packet" id="packet"></div></div>
+        <div class="station">
+          <p class="station-name">Your screen</p>
+          <div class="station-figure"><svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-laptop"/></svg></div>
+          <p class="station-says">Opens the box</p>
+        </div>
+        <div class="station">
+          <p class="station-name"><span class="code">D</span> Leesin proxy</p>
+          <div class="station-figure"><svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-proxy"/></svg></div>
+          <p class="station-says">Only carries it</p>
+        </div>
+        <div class="station">
+          <p class="station-name"><span class="code">A</span> Your Pi</p>
+          <div class="station-figure"><svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-pi"/></svg></div>
+          <p class="station-says">Locks the box</p>
+        </div>
+      </div>
+
+      <div class="sees">
+        <section class="callout sees-col" aria-labelledby="sees-yes">
+          <h3 id="sees-yes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            What the proxy sees
+          </h3>
+          <div class="example locked">
+            <p class="example-label">An alert, as the proxy sees it</p>
+            <p class="cipher" id="view-proxy" aria-live="polite"></p>
+          </div>
+          <ul class="plain-list">
+            <li>Which home server a box is going to</li>
+            <li>How big each box is, and when it's sent</li>
+            <li>The pairing code you type when you first connect</li>
+          </ul>
+        </section>
+
+        <section class="callout sees-col" aria-labelledby="sees-no">
+          <h3 id="sees-no">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20 20 4"/></svg>
+            What it never sees
+          </h3>
+          <div class="example open">
+            <p class="example-label">The same alert, as you see it</p>
+            <div class="alert-card" id="view-open">
+              <span class="alert-risk" id="open-risk">53%</span>
+              <div>
+                <p class="alert-who" id="open-who">mia_builds on Roblox</p>
+                <p class="alert-msg" id="open-msg">“send me a pic of you, just for me”</p>
+              </div>
+            </div>
+          </div>
+          <ul class="plain-list">
+            <li>What your child types or receives</li>
+            <li>Alerts and risk scores</li>
+            <li>Your children's game accounts</li>
+            <li>Your dashboard password</li>
+            <li>The key that opens the box</li>
+          </ul>
+        </section>
+      </div>
+
+      <details class="subassembly">
+        <summary>
+          <span>How a session gets locked</span>
+          <small>For the technically curious</small>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <ol class="handshake">
+          <li>
+            <span class="n">1</span>
+            <h4>Pair</h4>
+            <p>You enter your Pi's server ID and pairing code in the dashboard. The proxy uses the ID to find your Pi and passes the code along.</p>
+          </li>
+          <li>
+            <span class="n">2</span>
+            <h4>Exchange</h4>
+            <p>Your browser and your Pi each pick a secret number and swap only the public halves: Diffie-Hellman over the 2048-bit group from <code>RFC 3526</code>.</p>
+          </li>
+          <li>
+            <span class="n">3</span>
+            <h4>Derive</h4>
+            <p>Both ends turn the shared secret into the same AES-256 key and nonce base with <code>HKDF-SHA256</code>. The key itself never travels.</p>
+          </li>
+          <li>
+            <span class="n">4</span>
+            <h4>Seal</h4>
+            <p>Every request, reply and live alert is sealed with AES-GCM and numbered. Your requests count up from 1 and your Pi's replies from 2<sup>52</sup>, so a nonce is never reused.</p>
+          </li>
+        </ol>
+        <div class="fine">
+          <div>
+            <h4>What the proxy stores</h4>
+            <p>Your server's ID, its username and a bcrypt hash of its password, and which session belongs to which server (in memory only, dropped after three hours). Your Pi dials out, so your home router stays closed.</p>
+          </div>
+          <div>
+            <h4>Known limits</h4>
+            <p>Besides routes, sizes, timing and the pairing code, the proxy sees your dashboard login token in request headers; it only unlocks replies the proxy can't open. The key exchange isn't authenticated yet, so a proxy that actively swapped keys could read traffic.</p>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 4–8 · Build -->
+  <section class="page" id="build" aria-labelledby="build-title">
+    <div class="page-inner">
+      <div class="build-head">
+        <h2 id="build-title">Build it in five steps</h2>
+        <p class="lede">Hover over a step to watch it. Commands run from the repository root unless a step says otherwise.</p>
+      </div>
+
+      <ol class="flow" role="tablist" aria-label="Build steps">
+        <li role="presentation">
+          <button class="step-btn" type="button" role="tab" id="tab-1" aria-controls="panel-1" aria-selected="true" data-step="1">
+            <span class="n">1</span>
+            <span class="t">Get your server</span>
+            <span class="p">Raspberry Pi</span>
+            <span class="bar" aria-hidden="true"><i></i></span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="step-btn" type="button" role="tab" id="tab-2" aria-controls="panel-2" aria-selected="false" data-step="2" tabindex="-1">
+            <span class="n">2</span>
+            <span class="t">Start the backend</span>
+            <span class="p">Backend</span>
+            <span class="bar" aria-hidden="true"><i></i></span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="step-btn" type="button" role="tab" id="tab-3" aria-controls="panel-3" aria-selected="false" data-step="3" tabindex="-1">
+            <span class="n">3</span>
+            <span class="t">Start the classifier</span>
+            <span class="p">Classifier</span>
+            <span class="bar" aria-hidden="true"><i></i></span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="step-btn" type="button" role="tab" id="tab-4" aria-controls="panel-4" aria-selected="false" data-step="4" tabindex="-1">
+            <span class="n">4</span>
+            <span class="t">Register with the proxy</span>
+            <span class="p">Leesin proxy</span>
+            <span class="bar" aria-hidden="true"><i></i></span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="step-btn" type="button" role="tab" id="tab-5" aria-controls="panel-5" aria-selected="false" data-step="5" tabindex="-1">
+            <span class="n">5</span>
+            <span class="t">Pair the game, start monitoring</span>
+            <span class="p">Child's game</span>
+            <span class="bar" aria-hidden="true"><i></i></span>
+          </button>
+        </li>
+      </ol>
+
+      <div class="stage">
+        <article class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1" data-step="1">
+          <div class="media">
+            <video muted playsinline preload="auto" data-slug="01-server" aria-label="Screen recording: Get your server">
+              <source data-src="public/media/01-server.webm" type="video/webm">
+              <source data-src="public/media/01-server.mp4" type="video/mp4">
+            </video>
+            <div class="placeholder">
+              <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-pi"/></svg>
+              <p>Recording of step 1 coming soon</p>
+            </div>
+          </div>
+          <div class="detail">
+            <h3><span class="n-inline">1.&nbsp;</span>Get your server</h3>
+            <p>A <strong>Raspberry Pi with a 64-bit OS</strong>, or any Linux machine that stays on at home. Install Docker, git, the <code>psql</code> client and <code>uv</code>, then clone TellMom onto it.</p>
+            <div class="cmd">
+              <pre><code>git clone https://github.com/hawlermathew2007/TellMom.git
+cd TellMom
+cp .env.example .env            <span class="c"># Postgres settings</span>
+cp backend/.env.example backend/.env
+<span class="c"># In backend/.env: set JWT_SECRET, CLASSIFIER_PASSWORD and GROQ_API_KEY</span></code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p class="aside">Everything the dashboard shows is stored on this machine.</p>
+          </div>
+        </article>
+        <article class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" data-step="2" hidden>
+          <div class="media">
+            <video muted playsinline preload="none" data-slug="02-backend" aria-label="Screen recording: Start the backend">
+              <source data-src="public/media/02-backend.webm" type="video/webm">
+              <source data-src="public/media/02-backend.mp4" type="video/mp4">
+            </video>
+            <div class="placeholder">
+              <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-backend"/></svg>
+              <p>Recording of step 2 coming soon</p>
+            </div>
+          </div>
+          <div class="detail">
+            <h3><span class="n-inline">2.&nbsp;</span>Start the backend</h3>
+            <p>Postgres runs in Docker. The backend runs beside it, stores every chat in that database and raises alerts.</p>
+            <div class="cmd">
+              <pre><code>docker compose up -d postgres
+bash ./scripts/create-db.sh    <span class="c"># needs the psql client</span>
+uv sync
+uv run python -m backend.main</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p class="aside">The backend listens on port 8000 on this machine only. Nothing on your router needs opening.</p>
+          </div>
+        </article>
+        <article class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" data-step="3" hidden>
+          <div class="media">
+            <video muted playsinline preload="none" data-slug="03-classifier" aria-label="Screen recording: Start the classifier">
+              <source data-src="public/media/03-classifier.webm" type="video/webm">
+              <source data-src="public/media/03-classifier.mp4" type="video/mp4">
+            </video>
+            <div class="placeholder">
+              <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-classifier"/></svg>
+              <p>Recording of step 3 coming soon</p>
+            </div>
+          </div>
+          <div class="detail">
+            <h3><span class="n-inline">3.&nbsp;</span>Start the classifier</h3>
+            <p>The classifier checks in with the backend using <code>CLASSIFIER_PASSWORD</code>, then scores each conversation again every time a new message arrives.</p>
+            <div class="cmd">
+              <pre><code>cd classifier
+cp .env.example .env   <span class="c"># set BACKEND_PASSWORD</span>
+uv sync
+uv run main.py</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p class="aside">The first start downloads the SimCSE encoder, a few hundred megabytes.</p>
+          </div>
+        </article>
+        <article class="panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4" data-step="4" hidden>
+          <div class="media">
+            <video muted playsinline preload="none" data-slug="04-register" aria-label="Screen recording: Register with the proxy">
+              <source data-src="public/media/04-register.webm" type="video/webm">
+              <source data-src="public/media/04-register.mp4" type="video/mp4">
+            </video>
+            <div class="placeholder">
+              <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-proxy"/></svg>
+              <p>Recording of step 4 coming soon</p>
+            </div>
+          </div>
+          <div class="detail">
+            <h3><span class="n-inline">4.&nbsp;</span>Register with the proxy</h3>
+            <p>Open the backend's terminal panel, point it at a Leesin proxy and register. It gives you a <strong>server ID</strong> and a <strong>pairing code</strong>.</p>
+            <div class="cmd">
+              <pre><code>uv run python -m backend.tui
+<span class="c"># Proxy URL:</span> <span class="v" data-origin>https://your-proxy.example</span>
+<span class="c"># Pick a username and password, then Register, then Connect</span>
+<span class="c"># Copy the Server ID and the pairing code</span></code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p class="aside">Your Pi dials out to the proxy and holds the connection open, so replies can find their way home.</p>
+          </div>
+        </article>
+        <article class="panel" id="panel-5" role="tabpanel" aria-labelledby="tab-5" data-step="5" hidden>
+          <div class="media">
+            <video muted playsinline preload="none" data-slug="05-monitor" aria-label="Screen recording: Pair the game, start monitoring">
+              <source data-src="public/media/05-monitor.webm" type="video/webm">
+              <source data-src="public/media/05-monitor.mp4" type="video/mp4">
+            </video>
+            <div class="placeholder">
+              <svg class="iso" viewBox="0 0 120 120" aria-hidden="true"><use href="#i-game"/></svg>
+              <p>Recording of step 5 coming soon</p>
+            </div>
+          </div>
+          <div class="detail">
+            <h3><span class="n-inline">5.&nbsp;</span>Pair the game, start monitoring</h3>
+            <p>Run the adapter where the chat can be read: the Discord bot, the Minecraft adapter or the Roblox place module. It pairs with your Pi the same sealed way. Then open the dashboard, connect with your server ID and pairing code, and add your child's game account.</p>
+            <div class="cmd">
+              <pre><code>PROXY_URL=<span class="v" data-origin>https://your-proxy.example</span> uv run python -m adapters.main
+uv run python -m adapters.tui   <span class="c"># start Discord or Minecraft</span></code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p class="aside">Alerts appear in the <a href="/app/">dashboard</a> as they happen.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · Playground -->
+  <section class="page" id="playground" aria-labelledby="play-title">
+    <div class="page-inner">
+      <h2 id="play-title">Try the classifier</h2>
+      <p class="lede">Watch TellMom read a made-up chat, one message at a time, with the same model that runs on your Pi. It waits for <strong>seven messages</strong> before it judges a conversation.</p>
+
+      <div class="play-grid">
+        <div class="chat callout">
+          <div class="chat-head">
+            <div class="presets" role="group" aria-label="Sample chats">
+              <button class="preset" type="button" data-preset="grooming" aria-pressed="true">Suspicious chat</button>
+              <button class="preset" type="button" data-preset="ordinary" aria-pressed="false">Normal chat</button>
+            </div>
+            <div class="transport">
+              <button class="btn btn-small" type="button" id="play-btn">Play</button>
+              <button class="btn-quiet" type="button" id="reset-btn">Start over</button>
+            </div>
+          </div>
+          <ol class="log" id="log" aria-live="polite" aria-label="Chat messages"></ol>
+          <form class="compose" id="compose">
+            <label class="visually-hidden" for="as">Send as</label>
+            <select id="as">
+              <option value="stranger">as Stranger</option>
+              <option value="child">as Child</option>
+            </select>
+            <label class="visually-hidden" for="text">Message</label>
+            <input id="text" maxlength="280" autocomplete="off" placeholder="Or type your own message">
+            <button class="btn" type="submit">Send</button>
+          </form>
+        </div>
+
+        <div class="result callout" aria-labelledby="result-title">
+          <h3 id="result-title" class="visually-hidden">What TellMom thinks</h3>
+          <div class="verdict" id="verdict" role="status">
+            <span class="verdict-icon" id="verdict-icon" aria-hidden="true"></span>
+            <div>
+              <p class="verdict-title" id="verdict-title">Press Play to start</p>
+              <p class="verdict-sub" id="verdict-sub">A made-up chat between a stranger and a child on Roblox.</p>
+            </div>
+          </div>
+
+          <div class="gauge" id="gauge">
+            <div class="gauge-head">
+              <span>Risk</span>
+              <div class="digits idle" id="digits" role="img" aria-label="No score yet">
+                <div class="digit"><div class="reel"></div></div>
+                <div class="digit"><div class="reel"></div></div>
+                <span class="pct" aria-hidden="true">%</span>
+              </div>
+            </div>
+            <div class="meter" aria-hidden="true">
+              <div class="meter-fill" id="meter-fill"></div>
+              <div class="meter-line"><span>Alert line</span></div>
+            </div>
+            <div class="meter-scale" aria-hidden="true"><span>Safe</span><span>Risky</span></div>
+          </div>
+
+          <ol class="progress" id="progress" aria-label="Messages read"></ol>
+
+          <p class="fine">This is an early prototype model and it does make mistakes. Try a normal chat of your own and see.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Back cover -->
+  <section class="page back" aria-labelledby="back-title">
+    <div class="page-inner">
+      <h2 id="back-title">Build yours</h2>
+      <p class="lede"><strong>One Raspberry Pi, and your child's chats are stored in your home.</strong> Already built? Open the dashboard and connect with your server ID and pairing code.</p>
+      <div class="back-actions">
+        <a class="btn" href="#build">Start building</a>
+        <a class="btn-quiet" href="/app/">Open the dashboard</a>
+        <a class="btn-quiet" href="https://github.com/hawlermathew2007/TellMom">Source on GitHub</a>
+      </div>
+      <div class="back-notes">
+        <div>
+          <h3>A prototype</h3>
+          <p>TellMom is a working prototype, not a finished service. Test it on your own setup before you rely on it.</p>
+        </div>
+        <div>
+          <h3>What it detects today</h3>
+          <p>Grooming patterns in text chat on Roblox, Discord and Minecraft. Bullying, scams and oversharing family details aren't covered yet.</p>
+        </div>
+        <div>
+          <h3>What's next</h3>
+          <p>An Android app, and screen analysis that sees what happens in the game, not only what's typed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js" defer></script>
+</body>
+</html>
