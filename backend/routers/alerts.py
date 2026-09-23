@@ -1,18 +1,18 @@
-import logging
 import json
-from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+import logging
 
-from backend.services.proxy_manager import proxy_manager
-from backend.database.models import Alert, Parent, ChatMessage, ChildAccount
-from backend.database.session import SessionLocal, get_db
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
+
 from backend.core.dependencies import get_current_parent
+from backend.core.jwt import decode_stream_token
+from backend.database.models import Alert, ChatMessage, ChildAccount, Parent
+from backend.database.session import SessionLocal, get_db
 from backend.schemas.alerts import AlertResponse, ChatMessageResponse
 from backend.schemas.grooming import IncrementalAnalysisResponse
 from backend.services.auth import get_parent_from_token
-from backend.services.notifications import alert_manager
 from backend.services.explanation import get_incremental_analysis
-from backend.core.jwt import decode_stream_token
+from backend.services.notifications import alert_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -115,11 +115,6 @@ async def acknowledge_alert(
         )
     alert_res = AlertResponse.model_validate(alert)
     alert_res.messages = [ChatMessageResponse.model_validate(m) for m in messages]
-
-    if proxy_manager.agent:
-        await proxy_manager.agent._send_response(
-            {"type": "chat_alert", "data": alert_res.model_dump(mode="json")}
-        )
 
     return alert_res
 

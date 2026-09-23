@@ -1,5 +1,6 @@
 import os
 import pathlib
+
 from dotenv import load_dotenv
 
 BASE = pathlib.Path(__file__).parent.parent.resolve()

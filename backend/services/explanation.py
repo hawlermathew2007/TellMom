@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 import httpx
 from sqlalchemy.orm import Session
 
-from backend.core.cache import message_cache, sync_message_cache
 from backend.core import config
-from backend.database.models import IncrementalAnalysis, Alert
+from backend.core.cache import message_cache, sync_message_cache
+from backend.database.models import Alert, IncrementalAnalysis
 from backend.schemas.grooming import IncrementalAnalysisResponse, NewlyDetectedStage
 
 logger = logging.getLogger(__name__)

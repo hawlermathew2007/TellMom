@@ -9,26 +9,26 @@ from typing import Any
 
 import httpx
 import websockets
+from pydantic import BaseModel
 
-from shared.schemas.tunnel import EncryptedMessage, TunnelRequestTypes, TunnelResponse
-from shared.schemas.response import ResponseStatus
-from shared.services.security import (
-    SessionState,
-    b64_to_int,
-    derive_dh_public_key,
-    derive_shared_secret,
-    derive_session_keys,
-    generate_dh_private_key,
-    int_to_b64,
-    encrypt_message,
-    decrypt_message,
-)
+from backend.core.config import LOCAL_URL, PROXY_URL, STATE_PATH
 from shared.schemas.messages import (
     AuthResponse,
     DhResponse,
 )
-from pydantic import BaseModel
-from backend.core.config import STATE_PATH, PROXY_URL, LOCAL_URL
+from shared.schemas.response import ResponseStatus
+from shared.schemas.tunnel import EncryptedMessage, TunnelRequestTypes, TunnelResponse
+from shared.services.security import (
+    SessionState,
+    b64_to_int,
+    decrypt_message,
+    derive_dh_public_key,
+    derive_session_keys,
+    derive_shared_secret,
+    generate_dh_private_key,
+    int_to_b64,
+    seal_outbound,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,16 @@ class ProxyAgent:
         if not connection_id:
             return
 
+        # Frames going back to the browser are sealed with the session's keys,
+        # so a socket from a session without keys has nothing to seal with.
+        session_id = message.get("session_id") or ""
+        state = self.session_states.get(session_id)
+        if state is None or state.aes_key is None:
+            await self._send_response(
+                {"type": "ws_close", "connection_id": connection_id, "code": 1008}
+            )
+            return
+
         # convert http url to a ws url instead
         base_ws_url = self.local_url.replace("http://", "ws://").replace(
             "https://", "wss://"
@@ -208,7 +218,7 @@ class ProxyAgent:
         try:
             ws = await websockets.connect(ws_url)
             self.active_ws[connection_id] = ws
-            asyncio.create_task(self._ws_listen_loop(connection_id, ws))
+            asyncio.create_task(self._ws_listen_loop(connection_id, ws, state))
         except Exception as exc:
             logger.error("Failed to connect ws to local backend: %s", exc)
             await self._send_response(
@@ -216,20 +226,25 @@ class ProxyAgent:
             )
 
     async def _ws_listen_loop(
-        self, connection_id: str, ws: websockets.ClientConnection
+        self,
+        connection_id: str,
+        ws: websockets.ClientConnection,
+        state: SessionState,
     ) -> None:
         try:
             async for msg in ws:
-                # Determine and encode based on whether payload is string or byte
-                is_str = isinstance(msg, str)
+                # The local backend only speaks text; a binary frame would have
+                # to cross the proxy unsealed, so it is dropped instead.
+                if not isinstance(msg, str):
+                    logger.warning("Dropping binary ws frame on %s", connection_id)
+                    continue
+                sealed = seal_outbound(state, msg)
                 await self._send_response(
                     {
                         "type": "ws_frame",
                         "connection_id": connection_id,
-                        "opcode": "text" if is_str else "binary",
-                        "data": msg
-                        if is_str
-                        else base64.urlsafe_b64encode(msg).decode("ascii"),
+                        "opcode": "text",
+                        "data": sealed.model_dump_json(),
                     }
                 )
         except Exception as exc:
@@ -366,14 +381,7 @@ class ProxyAgent:
                 resp_status = resp.status_code
 
                 if resp.content:
-                    resp_body = resp.content.decode()
-                    ciphertext = encrypt_message(
-                        sequence=state.sequence,
-                        aes_key=state.aes_key,
-                        nonce_base=state.nonce_base,
-                        plaintext=resp_body,
-                        session_id=session_id,
-                    )
+                    ciphertext = seal_outbound(state, resp.content.decode())
                     resp_body_bytes = ciphertext.model_dump_json().encode()
                     resp_body_b64 = base64.urlsafe_b64encode(resp_body_bytes).decode(
                         "ascii"

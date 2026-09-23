@@ -1,5 +1,6 @@
-from backend.services.proxy_agent import ProxyAgent
 import logging
+
+from backend.services.proxy_agent import ProxyAgent
 
 logger = logging.getLogger(__name__)
 

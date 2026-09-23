@@ -1,5 +1,5 @@
 import { AlertsApi, AuthApi, ChildrenApi, MessageApi, Configuration } from "./index";
-import { decryptMessage, encryptMessage, base64ToBytes } from "../lib/security";
+import { decryptMessage, encryptMessage, base64ToBytes, type EncryptedMessage } from "../lib/security";
 
 const PROXY_URL = import.meta.env.VITE_API_URL;
 const SESSION_ID_KEY = "tellmom_session_id";
@@ -86,6 +86,26 @@ export const customFetch = async (input: RequestInfo | URL, init?: RequestInit, 
     }
   }
   return response;
+};
+
+// Opens a message the local backend sealed for this session, such as a live
+// alert frame. Plain JSON (no ciphertext field) passes through untouched.
+export const openSealed = async (raw: unknown): Promise<unknown> => {
+  const sealed = raw as { ciphertext?: unknown; sequence?: number };
+  if (!sealed || typeof sealed.ciphertext !== "string" || !sessionId) return raw;
+
+  const aesKeyB64 = localStorage.getItem("tellmom_aes_key");
+  const nonceBaseB64 = localStorage.getItem("tellmom_nonce_base");
+  if (!aesKeyB64 || !nonceBaseB64) throw new Error("No session keys to open a sealed message");
+
+  const aad = new TextEncoder().encode(`${sessionId}:${sealed.sequence}`);
+  const plaintext = await decryptMessage(
+    base64ToBytes(aesKeyB64),
+    base64ToBytes(nonceBaseB64),
+    sealed as EncryptedMessage,
+    aad,
+  );
+  return JSON.parse(plaintext);
 };
 
 function createConfiguration(): Configuration {

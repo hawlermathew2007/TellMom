@@ -6,10 +6,10 @@ import httpx
 import uvicorn
 
 from adapters.platforms import ChatPlatform
-from backend.schemas.ingest import IngestRequest
-from proxy.database.session import init_db as proxy_init_db
 from backend.database.session import init_db as backend_init_db
+from backend.schemas.ingest import IngestRequest
 from backend.services.proxy_agent import ProxyAgent, ProxyState
+from proxy.database.session import init_db as proxy_init_db
 
 
 def _wait_server(url: str):
@@ -47,8 +47,8 @@ def _start_server(
 
 def test_full_proxy_roundtrip(servers, postgres) -> None:
     # ensure proxy DB tables exist before server starts
-    from proxy.database.session import reset_db_url as reset_proxy_db_url
     from backend.database.session import reset_db_url as reset_back_db_url
+    from proxy.database.session import reset_db_url as reset_proxy_db_url
 
     reset_proxy_db_url(postgres.get_connection_url())
     reset_back_db_url(postgres.get_connection_url())

@@ -4,16 +4,16 @@ import argparse
 import asyncio
 import logging
 import re
-import sys
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 import httpx
+
 from adapters.base import BaseAdapter
 from adapters.config import HOST, PORT
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -78,7 +78,7 @@ class LogTailer:
         return lines
 
 
-def parse_chat_message(line: str, offset: int) -> Optional[ChatMessage]:
+def parse_chat_message(line: str, offset: int) -> ChatMessage | None:
     m = CHAT_LINE_RE.match(line)
     if not m:
         return None
@@ -182,7 +182,7 @@ class MinecraftAdapter(BaseAdapter):
             description="Tails a Minecraft log and forwards chat",
         )
 
-    def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+    def launch(self, config: dict[str, Any], log_file: Any) -> subprocess.Popen:
         args = [
             sys.executable,
             "-m",

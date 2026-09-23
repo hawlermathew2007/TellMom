@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getApis, getToken, getSessionId, clearToken } from "./apis/client";
+import { getApis, getToken, getSessionId, clearToken, openSealed } from "./apis/client";
 import { ParentResponse, ChildAccountResponse } from "./apis";
 import { AlertWithExplanation, parseAlert } from "./lib/parseAlert";
 import { useSettings } from "./hooks/useSettings";
@@ -153,10 +153,11 @@ export default function App() {
                 ws.send(JSON.stringify({ type: "auth", token }));
             }
 
-            ws.onmessage = (event) => {
+            ws.onmessage = async (event) => {
                 if (isCancelled) return;
                 try {
-                    const raw = JSON.parse(event.data);
+                    // Frames cross the proxy sealed with this session's keys.
+                    const raw = (await openSealed(JSON.parse(event.data))) as any;
                     if (!hasAuthenticated) {
                         if (raw.type === "auth_ok") {
                             hasAuthenticated = true;

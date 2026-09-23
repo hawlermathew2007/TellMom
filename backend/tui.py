@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, fields
 from typing import Any
@@ -33,7 +32,7 @@ class ConfigState:
     local_url: str = DEFAULT_LOCAL_URL
 
     @classmethod
-    def from_api(cls, data: dict[str, Any]) -> "ConfigState":
+    def from_api(cls, data: dict[str, Any]) -> ConfigState:
         known = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in known})
 
@@ -319,9 +318,9 @@ class BackendTUI(App):
                 pyperclip.copy(value)
             except ImportError:
                 # Fallback to subprocess for linux/mac
+                import shutil
                 import subprocess
                 import sys
-                import shutil
 
                 if sys.platform == "linux":
                     if shutil.which("xclip"):
@@ -411,7 +410,7 @@ class BackendTUI(App):
             self.log_message(f"Error: {e}")
         except ConnectionError:
             self.log_message("Connection error: backend is offline.")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.log_message(f"Timed out waiting for '{action}'.")
         except Exception as e:
             self.log_message(f"Exception: {e}")

@@ -1,6 +1,6 @@
-from typing import Dict, Any, List
-import subprocess
 import abc
+import subprocess
+from typing import Any
 
 
 class BaseAdapter(abc.ABC):
@@ -8,7 +8,7 @@ class BaseAdapter(abc.ABC):
         self,
         name: str,
         display_name: str,
-        default_config: Dict[str, Any],
+        default_config: dict[str, Any],
         description: str = "",
     ):
         self.name = name
@@ -17,13 +17,13 @@ class BaseAdapter(abc.ABC):
         self.description = description
 
     @abc.abstractmethod
-    def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+    def launch(self, config: dict[str, Any], log_file: Any) -> subprocess.Popen:
         pass
 
 
 class AdapterRegistry:
     def __init__(self):
-        self.adapters: Dict[str, BaseAdapter] = {}
+        self.adapters: dict[str, BaseAdapter] = {}
 
     def register(self, adapter: BaseAdapter) -> None:
         self.adapters[adapter.name] = adapter
@@ -31,5 +31,5 @@ class AdapterRegistry:
     def get(self, name: str) -> BaseAdapter | None:
         return self.adapters.get(name)
 
-    def list_adapters(self) -> List[BaseAdapter]:
+    def list_adapters(self) -> list[BaseAdapter]:
         return list(self.adapters.values())

@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from pydantic import BaseModel
+
 from adapters.platforms import ChatPlatform
 
 

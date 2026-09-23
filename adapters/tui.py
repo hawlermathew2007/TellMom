@@ -1,27 +1,27 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
+
+from textual import work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.reactive import reactive
+from textual.screen import ModalScreen, Screen
+from textual.widgets import (
+    Button,
+    Checkbox,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    Log,
+    Static,
+)
 
 from adapters.config import PROXY_URL, WS_URL
 from shared.services.state_client import CommandError, StateStreamClient
-from textual import work
-from textual.app import App, ComposeResult
-from textual.widgets import (
-    Header,
-    Footer,
-    DataTable,
-    Log,
-    Input,
-    Button,
-    Label,
-    Checkbox,
-    Static,
-)
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.binding import Binding
-from textual.screen import ModalScreen, Screen
-from textual.reactive import reactive
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -433,7 +433,7 @@ class TellMomTUI(App):
             self.log_line(f"{label} failed: {e}")
         except ConnectionError:
             self.log_line(f"{label} failed: adapter service is offline.")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.log_line(f"{label} timed out.")
         except Exception as e:
             self.log_line(f"{label} failed: {e}")

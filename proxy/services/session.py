@@ -1,15 +1,13 @@
 import asyncio
+import base64
 import json
 import logging
-import base64
 import uuid
 from typing import Any
-from pydantic import BaseModel
-from fastapi import WebSocket
-from cachetools import TTLCache
-from proxy.database.session import SessionLocal
-from proxy.database.models import ChatAlert
 
+from cachetools import TTLCache
+from fastapi import WebSocket
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +75,7 @@ async def send_proxy_request(
 
     try:
         return await asyncio.wait_for(future, timeout=15.0)
-    except asyncio.TimeoutError as exc:
+    except TimeoutError as exc:
         raise RuntimeError(
             f"Timed out waiting for server {server_id} response"
         ) from exc
@@ -124,15 +122,6 @@ async def _handle_unsolicited_message(server_id: str, message: dict) -> None:
 
     if msg_type in {"ws_frame", "ws_close"}:
         await _handle_ws_message(message)
-        return
-
-    if msg_type == "chat_alert":
-        db = SessionLocal()
-        try:
-            db.add(ChatAlert(server_id=server_id, alert_data=json.dumps(message.get("data", {}))))
-            db.commit()
-        finally:
-            db.close()
         return
 
     logger.warning("Server response missing request_id: %s", message)

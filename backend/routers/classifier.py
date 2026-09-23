@@ -1,4 +1,5 @@
 import json
+
 from fastapi import (
     APIRouter,
     Header,
@@ -6,13 +7,14 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+
 from backend.core import config
+from backend.core.jwt import create_stream_token, decode_stream_token
 from backend.schemas.ingest import (
     ClassifierCheckInRequest,
     ClassifierCheckInResponse,
 )
 from backend.services.classifier_stream import classifier_stream
-from backend.core.jwt import create_stream_token, decode_stream_token
 from shared.schemas.response import ResponseStatus
 
 router = APIRouter(prefix="/classifier", tags=["classifier"])

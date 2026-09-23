@@ -1,10 +1,9 @@
 import base64
 import uuid
+
 from fastapi import APIRouter, HTTPException, Request, WebSocket
 from fastapi.responses import Response
 
-from shared.schemas.response import ResponseStatus
-from shared.schemas.tunnel import TunnelRequestTypes
 from proxy.schemas.session import (
     SessionAuthRequest,
     SessionAuthResponse,
@@ -14,14 +13,14 @@ from proxy.schemas.session import (
 from proxy.services.session import (
     associate_session,
     get_server_for_session,
+    register_ws_connection,
     send_proxy_request,
     send_proxy_ws_message,
-    register_ws_connection,
     unregister_ws_connection,
 )
-from shared.schemas.tunnel import TunnelRequest
 from shared.schemas.messages import AuthRequest, DhRequest
-
+from shared.schemas.response import ResponseStatus
+from shared.schemas.tunnel import TunnelRequest, TunnelRequestTypes
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -154,6 +153,7 @@ async def forward_ws(websocket: WebSocket, session_id: str, path: str):
             {
                 "type": "ws_open",
                 "connection_id": connection_id,
+                "session_id": session_id,
                 "path": f"/{path}",
                 "headers": dict(websocket.headers),
             },

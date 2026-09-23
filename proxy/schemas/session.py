@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+
 from shared.schemas.response import ResponseStatus
 
 

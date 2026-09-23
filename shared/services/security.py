@@ -3,9 +3,10 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
-from shared.schemas.tunnel import EncryptedMessage
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+from shared.schemas.tunnel import EncryptedMessage
 
 # This is a safe 2048-bit MODP group from RFC 3526 (group 14)
 DH_P = int(
@@ -21,12 +22,21 @@ DH_P = int(
 )
 DH_G = 2
 
+# Both directions share one AES key and nonce base, so they must never share a
+# sequence number: GCM with a repeated nonce leaks the XOR of the plaintexts to
+# whoever holds both ciphertexts, which here is the proxy. The browser counts
+# its requests up from 1; everything the server seals (HTTP responses, live
+# WebSocket frames) counts up from here. 2**52 keeps every value an exact
+# integer in the browser's JSON.
+OUTBOUND_SEQUENCE_BASE = 2**52
+
 
 @dataclass
 class SessionState:
     session_id: str
     status: str
     sequence: int = 1
+    out_sequence: int = OUTBOUND_SEQUENCE_BASE
     aes_key: bytes | None = None
     nonce_base: bytes | None = None
     server_private: int | None = None
@@ -88,6 +98,20 @@ def xor_nonce(nonce_base: bytes, sequence: int) -> bytes:
     return bytes(a ^ b for a, b in zip(nonce_base, sequence_bytes))
 
 
+def seal_outbound(state: SessionState, plaintext: str) -> EncryptedMessage:
+    """Encrypt a server-to-browser message under the next outbound sequence."""
+    if state.aes_key is None or state.nonce_base is None:
+        raise ValueError("Session has no keys yet")
+    state.out_sequence += 1
+    return encrypt_message(
+        sequence=state.out_sequence,
+        aes_key=state.aes_key,
+        nonce_base=state.nonce_base,
+        plaintext=plaintext,
+        session_id=state.session_id,
+    )
+
+
 def encrypt_message(
     *,
     sequence: int,
@@ -97,7 +121,7 @@ def encrypt_message(
     session_id: str,
 ) -> EncryptedMessage:
     nonce = xor_nonce(nonce_base, sequence)
-    aad = f"{session_id}:{sequence}".encode("utf-8")
+    aad = f"{session_id}:{sequence}".encode()
 
     aesgcm = AESGCM(aes_key)
     encrypted = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), aad)

@@ -5,23 +5,22 @@ import logging
 import queue
 import threading
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import requests
 import websocket
-
 from config import (
-    CHECKIN_ENDPOINT,
     BACKEND_PASSWORD,
-    CHECKIN_TIMEOUT_S,
-    CHECKIN_RETRY_MAX,
-    CHECKIN_RETRY_DELAY,
     BACKEND_WS_URL,
-    RECONNECT_DELAY,
+    CHECKIN_ENDPOINT,
+    CHECKIN_RETRY_DELAY,
+    CHECKIN_RETRY_MAX,
+    CHECKIN_TIMEOUT_S,
     QUEUE_MAXSIZE,
+    RECONNECT_DELAY,
 )
 from model import GroomingDetector
-from utils import clean_text, utc_now_iso, log_section
+from utils import clean_text, log_section, utc_now_iso
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +64,7 @@ def server_checkin(
         "timestamp": utc_now_iso(),
     }
 
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
 
     for attempt in range(1, max_retries + 1):
         logger.info(f"[check-in] Attempt {attempt}/{max_retries} → POST {endpoint}")
@@ -195,8 +194,8 @@ class InferenceThread(threading.Thread):
         self,
         detector: GroomingDetector,
         inference_queue: queue.Queue,
-        result_callback: Optional[Callable[[dict], None]] = None,
-        response_sender: Optional[Callable[[dict], None]] = None,
+        result_callback: Callable[[dict], None] | None = None,
+        response_sender: Callable[[dict], None] | None = None,
     ):
         super().__init__(name="InferenceThread", daemon=True)
         self.detector = detector
@@ -266,7 +265,7 @@ class InferencePipeline:
         self,
         ws_url: str = BACKEND_WS_URL,
         password: str = BACKEND_PASSWORD,
-        result_callback: Optional[Callable] = None,
+        result_callback: Callable | None = None,
         queue_maxsize: int = QUEUE_MAXSIZE,
         checkin_endpoint: str = CHECKIN_ENDPOINT,
     ):
@@ -278,8 +277,8 @@ class InferencePipeline:
 
         self._queue = queue.Queue(maxsize=self._queue_maxsize)
 
-        self._detector: Optional[GroomingDetector] = None
-        self._inf_thread: Optional[InferenceThread] = None
+        self._detector: GroomingDetector | None = None
+        self._inf_thread: InferenceThread | None = None
 
     def start(self, block: bool = True) -> None:
         """

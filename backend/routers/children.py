@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.core.dependencies import get_current_parent
 from backend.database.models import ChildAccount, Parent
 from backend.database.session import get_db
-from backend.core.dependencies import get_current_parent
 from backend.schemas.children import (
     ChildAccountCreate,
     ChildAccountResponse,

@@ -1,10 +1,9 @@
-import pytest
 import os
 import sys
 
+import pytest
 from dotenv import load_dotenv
 from testcontainers.postgres import PostgresContainer
-
 
 # container = PostgresContainer("postgres:16-alpine")
 # container.start()

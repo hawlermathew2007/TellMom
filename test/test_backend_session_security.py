@@ -1,10 +1,10 @@
 from shared.services.security import (
     b64_to_int,
-    encrypt_message,
     decrypt_message,
     derive_dh_public_key,
     derive_session_keys,
     derive_shared_secret,
+    encrypt_message,
     generate_dh_private_key,
     int_to_b64,
 )

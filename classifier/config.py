@@ -1,7 +1,8 @@
 import os
-import torch
 import pathlib
 from pathlib import Path
+
+import torch
 from dotenv import load_dotenv
 
 BASE = pathlib.Path(__file__).parent.resolve()

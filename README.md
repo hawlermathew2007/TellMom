@@ -63,5 +63,8 @@ npm start
 python discord_bot.py
 ```
 
+# Website and deployment
+`site/` is the public showcase: the Leesin protocol, the five-step build guide and a live classifier playground. It has no build step. `deploy/` ships the public half of TellMom (the Leesin proxy, the playground classifier, the site and the dashboard at `/app/`) to a VPS through GitHub Actions. See [deploy/README.md](deploy/README.md).
+
 # Future Works
 For future works, our team will develop an Android app for practical purpose along with Advanced Computer Vision that will be used to continuously scan screens in the game of the children to detect for more further details of what going on visually, not just text-based. We will also expand the AI capability to detecting issues such as family information exposure and online bullying.
