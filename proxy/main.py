@@ -1,20 +1,22 @@
-import logging
 import json
+import logging
+import pathlib
 from contextlib import asynccontextmanager
+
+from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from proxy.core.config import CORS_ORIGINS
-from proxy.database.session import init_db
-from shared.schemas.response import ResponseStatus
 from proxy.core.jwt import decode_stream_token
+from proxy.database.session import init_db
 from proxy.routers import auth, session
 from proxy.services.session import (
     handle_server_message,
     register_server,
     server_map,
 )
+from shared.schemas.response import ResponseStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,12 +80,17 @@ app.include_router(auth.router)
 app.include_router(session.router)
 app.include_router(router)
 
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+# Local convenience: serve a built dashboard when there is one. In production the
+# web container serves the site and the dashboard, and this process is API only.
+if pathlib.Path("frontend/dist").is_dir():
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
 
 if __name__ == "__main__":
-    import uvicorn
-    from proxy.core.config import HOST, PORT
     from argparse import ArgumentParser
+
+    import uvicorn
+
+    from proxy.core.config import HOST, PORT
 
     parser = ArgumentParser()
     parser.add_argument("--reload", action="store_true")
