@@ -1,0 +1,15 @@
+# Keep build contexts small and free of local state: every image builds from
+# the repository root.
+.git
+.venv
+**/.venv
+**/node_modules
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.impeccable
+.env
+**/.env
+frontend/dist
+frontend/.vite
+classifier/notebooks

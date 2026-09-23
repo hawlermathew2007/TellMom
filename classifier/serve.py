@@ -42,7 +42,7 @@ PORT = int(os.getenv("DEMO_PORT", "8090"))
 MAX_MESSAGES = int(os.getenv("DEMO_MAX_MESSAGES", "24"))
 MAX_MESSAGE_CHARS = int(os.getenv("DEMO_MAX_MESSAGE_CHARS", "280"))
 MAX_BODY_BYTES = 64 * 1024
-# Requests per client per minute. Behind nginx the client is X-Real-IP.
+# Requests per client per minute. Behind Traefik the client is X-Real-IP.
 RATE_LIMIT = int(os.getenv("DEMO_RATE_LIMIT", "30"))
 CORS_ORIGIN = os.getenv("DEMO_CORS_ORIGIN", "*")
 
