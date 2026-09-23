@@ -1,12 +1,14 @@
 import asyncio
 import logging
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
 from backend.database.session import init_db
+from backend.routers import alerts, auth, children, classifier, management, message
 from backend.services.classifier_stream import classifier_stream
-from backend.routers import alerts, auth, children, message, classifier, management
+from backend.services.proxy_agent import ProxyState, load_state
 from backend.services.proxy_manager import proxy_manager
-from backend.services.proxy_agent import load_state, ProxyState
 from backend.services.status_hub import management_hub
 
 logger = logging.getLogger("uvicorn.error")
@@ -61,9 +63,11 @@ app.include_router(classifier.router)
 app.include_router(management.router)
 
 if __name__ == "__main__":
-    import uvicorn
-    from backend.core.config import HOST, PORT
     from argparse import ArgumentParser
+
+    import uvicorn
+
+    from backend.core.config import HOST, PORT
 
     parser = ArgumentParser()
     parser.add_argument("--reload", action="store_true")

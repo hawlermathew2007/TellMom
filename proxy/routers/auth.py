@@ -1,16 +1,17 @@
 import logging
-from fastapi import Depends, APIRouter, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from proxy.core.jwt import create_stream_token
 from proxy.core.security import hash_password, verify_password
+from proxy.database.models import Server
 from proxy.database.session import get_db
 from proxy.schemas.auth import (
     LoginRequest,
     RegisterRequest,
     ServerTokenResponse,
 )
-from proxy.database.models import Server
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

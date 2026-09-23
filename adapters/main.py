@@ -1,21 +1,21 @@
+import asyncio
 import logging
 import subprocess
-import asyncio
-import yaml
-import uvicorn
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket
+from typing import Any
+
+import uvicorn
+import yaml
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, WebSocket
+from pydantic import BaseModel
 
 from adapters.base import AdapterRegistry
-from adapters.minecraft.minecraft import plugin as minecraft_plugin
-from adapters.discord.discord import plugin as discord_plugin
 from adapters.client import SecureProxyClient
+from adapters.config import BASE_DIR, CONFIG_FILE, HOST, PORT, RECONNECT_INTERVAL
+from adapters.discord.discord import plugin as discord_plugin
+from adapters.minecraft.minecraft import plugin as minecraft_plugin
 from backend.schemas.ingest import IngestRequest
-from adapters.config import CONFIG_FILE, BASE_DIR, HOST, PORT, RECONNECT_INTERVAL
 from shared.services.state_hub import StateHub, serve_state_stream
-
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def write_raw_config(cfg: dict) -> None:
         yaml.safe_dump(cfg, f)
 
 
-def load_config() -> Dict[str, dict]:
+def load_config() -> dict[str, dict]:
     cfg = {}
     for adapter in registry.list_adapters():
         cfg[adapter.name] = adapter.default_config.copy()
@@ -91,25 +91,25 @@ class ServerState:
 
     def __init__(self, local_ingest_url: str) -> None:
         self.local_ingest_url = local_ingest_url
-        self.processes: Dict[str, subprocess.Popen] = {}
-        self.proxy_client: Optional[SecureProxyClient] = None
-        self.connection_info: Dict[str, Optional[str]] = {
+        self.processes: dict[str, subprocess.Popen] = {}
+        self.proxy_client: SecureProxyClient | None = None
+        self.connection_info: dict[str, str | None] = {
             "proxy_url": None,
             "server_id": None,
             "status": "Disconnected",
         }
         # Kept in memory so building a snapshot never touches the disk.
-        self.config: Dict[str, dict] = load_config()
+        self.config: dict[str, dict] = load_config()
         self.saved_config: dict = load_server_config()
         self.hub = StateHub(self.snapshot, poll_interval=WATCH_INTERVAL)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "adapters": self.adapter_list(),
             "connection": {**self.connection_info, "saved_config": self.saved_config},
         }
 
-    def adapter_list(self) -> List[dict]:
+    def adapter_list(self) -> list[dict]:
         result = []
         for adapter in registry.list_adapters():
             cfg = self.config.get(adapter.name, adapter.default_config.copy())

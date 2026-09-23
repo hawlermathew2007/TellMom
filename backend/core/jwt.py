@@ -1,6 +1,8 @@
+from datetime import UTC, datetime, timedelta
+
 import jwt
-from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
+
 from backend.core import config
 
 ALGORITHM = config.JWT_ALGORITHM
@@ -8,7 +10,7 @@ ALGORITHM = config.JWT_ALGORITHM
 
 # TODO: this way of doing it is kind of dumb, now theres a mismatch wit proxy server stream
 def create_stream_token() -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "scope": "classifier:stream",
         "iat": now,

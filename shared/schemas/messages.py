@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -31,7 +31,7 @@ class MessageRequest(BaseModel):
 
 
 ProxyRequest = Annotated[
-    Union[AuthRequest, DhRequest, MessageRequest],
+    AuthRequest | DhRequest | MessageRequest,
     Field(discriminator="type"),
 ]
 
@@ -66,6 +66,6 @@ class MessageResponse(BaseModel):
 
 
 ProxyResponse = Annotated[
-    Union[AuthResponse, DhResponse, MessageResponse],
+    AuthResponse | DhResponse | MessageResponse,
     Field(discriminator="type"),
 ]

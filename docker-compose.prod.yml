@@ -1,0 +1,109 @@
+# Production stack for the public half of TellMom: the website and dashboard,
+# the Leesin proxy and its database, and the website's playground classifier.
+# Parents' own servers never run here; they run at home and dial out to the proxy.
+#
+# Traefik (installed by deploy/ansible) terminates TLS and routes by the labels
+# below; nothing in this file publishes a port. Lives on the VPS at /opt/tellmom
+# next to a .env the deploy workflow writes (see deploy/.env.example).
+#
+#   docker compose -f docker-compose.prod.yml ps
+#   docker compose -f docker-compose.prod.yml logs -f proxy
+
+name: tellmom
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  web:
+    image: ${IMAGE_PREFIX:?}/tellmom-web:${IMAGE_TAG:?}
+    restart: unless-stopped
+    networks: [edge]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.tellmom-web.rule: Host(`${SITE_DOMAIN:?}`)
+      traefik.http.routers.tellmom-web.entrypoints: websecure
+      # Everything the API routers below don't claim.
+      traefik.http.routers.tellmom-web.priority: "1"
+      traefik.http.services.tellmom-web.loadbalancer.server.port: "80"
+    logging: *logging
+
+  # Server accounts only: id, username, bcrypt hash. No chats, no alerts.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: proxy_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d proxy_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # WebSockets (home servers on /stream, dashboards under /session/) pass
+  # through Traefik without extra configuration.
+  proxy:
+    image: ${IMAGE_PREFIX:?}/tellmom-proxy:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/proxy_db
+      JWT_SECRET: ${JWT_SECRET:?}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
+      # The dashboard is served from this same origin, so it needs no entry.
+      CORS_ORIGINS: https://${SITE_DOMAIN:?}
+    networks: [internal, edge]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
+      traefik.http.routers.tellmom-proxy.rule: >-
+        Host(`${SITE_DOMAIN:?}`) && (PathPrefix(`/session/`) || PathPrefix(`/auth/`) || Path(`/stream`) || Path(`/health`))
+      traefik.http.routers.tellmom-proxy.entrypoints: websecure
+      traefik.http.services.tellmom-proxy.loadbalancer.server.port: "8080"
+    logging: *logging
+
+  # A demo, so it never gates a release: deploy.sh waits on the proxy and web.
+  playground:
+    image: ${IMAGE_PREFIX:?}/tellmom-playground:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      DEMO_RATE_LIMIT: ${DEMO_RATE_LIMIT:-30}
+      DEMO_CORS_ORIGIN: https://${SITE_DOMAIN:?}
+    volumes:
+      - models:/models
+    networks: [edge]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.tellmom-playground.rule: Host(`${SITE_DOMAIN:?}`) && PathPrefix(`/api/playground`)
+      traefik.http.routers.tellmom-playground.entrypoints: websecure
+      traefik.http.routers.tellmom-playground.middlewares: tellmom-playground-strip,tellmom-playground-limit
+      traefik.http.middlewares.tellmom-playground-strip.stripprefix.prefixes: /api/playground
+      # A transformer per request: a few per second per visitor is plenty for
+      # a person and stops a script from queueing the CPU.
+      traefik.http.middlewares.tellmom-playground-limit.ratelimit.average: "2"
+      traefik.http.middlewares.tellmom-playground-limit.ratelimit.burst: "10"
+      traefik.http.services.tellmom-playground.loadbalancer.server.port: "8090"
+    logging: *logging
+
+networks:
+  # Traefik's network, created by the Ansible playbook.
+  edge:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
+  internal:
+
+volumes:
+  pgdata:
+  # The SimCSE encoder, downloaded once and kept across releases.
+  models:

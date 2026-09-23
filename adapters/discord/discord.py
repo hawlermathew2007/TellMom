@@ -6,13 +6,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 import subprocess
-from pathlib import Path
-from typing import Dict, Any
+import sys
+from typing import Any
 
 import discord
 import httpx
+
 from ..base import BaseAdapter
 
 logging.basicConfig(
@@ -36,7 +36,7 @@ class DiscordAdapter(BaseAdapter):
             description="Discord bot that forwards chat",
         )
 
-    def launch(self, config: Dict[str, Any], log_file: Any) -> subprocess.Popen:
+    def launch(self, config: dict[str, Any], log_file: Any) -> subprocess.Popen:
         args = [
             sys.executable,
             "-m",

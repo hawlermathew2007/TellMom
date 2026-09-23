@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+
 from adapters.platforms import ChatPlatform
 from shared.schemas.response import ResponseStatus
 

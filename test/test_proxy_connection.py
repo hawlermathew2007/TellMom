@@ -1,8 +1,9 @@
 import asyncio
 import json
-
 from typing import cast
+
 from fastapi import WebSocket
+
 from proxy.services.session import (
     handle_server_message,
     register_server,

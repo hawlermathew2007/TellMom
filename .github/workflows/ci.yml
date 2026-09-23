@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+# Drop the old run if a new push to the PR lands while it is still going.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Protocol tests and proxy boot
+    runs-on: ubuntu-latest
+
+    # The proxy needs a database to start; the tests below need none.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: proxy_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d proxy_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install
+        run: uv sync --locked
+
+      # The sealing protocol is what the proxy's blindness rests on, so these
+      # run on every change. test_adapter_service, test_integration_full_flow and
+      # test_proxy_connection predate the current adapter and proxy APIs
+      # (adapters.server no longer exists, handle_server_message changed
+      # signature) and fail on main; add them back here once they are updated.
+      - name: Test
+        run: >-
+          uv run pytest -q
+          test/test_security_sequences.py
+          test/test_backend_session_security.py
+          --junitxml=${{ runner.temp }}/pytest.xml
+
+      # Catches the import-time failures a unit test never sees: a missing
+      # module, a broken config, a route that does not build.
+      - name: Proxy starts and answers /health
+        env:
+          POSTGRES_URL: postgresql://ci:ci@127.0.0.1:5432/proxy_db
+          JWT_SECRET: ci-only-secret-that-is-long-enough-for-hs256
+          HOST: 127.0.0.1
+          PORT: "8080"
+        run: |
+          uv run python -m proxy.main &
+          pid=$!
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health
+          kill "$pid"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: ${{ runner.temp }}/pytest.xml
+          if-no-files-found: ignore
+
+  playground:
+    name: Playground server compiles
+    runs-on: ubuntu-latest
+
+    # Loading the model needs torch and a download; the deploy build covers
+    # that. Here, only that the wrapper and what it imports still parse.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m py_compile classifier/serve.py classifier/model.py classifier/utils.py classifier/config.py
+
+  web:
+    name: Site and dashboard build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      # `npm run build` is `tsc -b && vite build`, so a type error fails here
+      # rather than in a parent's browser.
+      - name: Build the dashboard under /app/
+        working-directory: frontend
+        env:
+          VITE_BASE: /app/
+          VITE_API_URL: https://tellmom.example.com
+        run: npm run build
+
+      # The site has no build step; this is its syntax check.
+      - name: Site script parses
+        run: node --check site/app.js

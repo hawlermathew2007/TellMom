@@ -1,6 +1,8 @@
+from datetime import UTC, datetime, timedelta
+
 import jwt
-from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
+
 from proxy.core import config
 
 ALGORITHM = config.JWT_ALGORITHM
@@ -8,7 +10,7 @@ ALGORITHM = config.JWT_ALGORITHM
 
 # TODO: do sth about the configuration linter complain later
 def create_stream_token(server_id: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "scope": "server:stream",
         "sub": server_id,

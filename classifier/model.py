@@ -1,16 +1,15 @@
+import logging
 from pathlib import Path
 
 import joblib
-from sentence_transformers import SentenceTransformer
 from config import (
     CHECKPOINT_DIR,
     CLASSIFIER_PATH,
-    MODEL_NAME,
     DEVICE,
+    MODEL_NAME,
     SCALER_PATH,
 )
-from typing import Tuple
-import logging
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class GroomingDetector:
         self.clf = joblib.load(classifier_path)
 
     # TODO: expand this to do batch inference later, in case user wants to do their own hosting
-    def predict(self, text: str) -> Tuple[int, float]:
+    def predict(self, text: str) -> tuple[int, float]:
         # NOTE: encoder accepts a list of string, allowing for batching
         emb = self.encoder.encode(
             [text], convert_to_numpy=True, normalize_embeddings=False

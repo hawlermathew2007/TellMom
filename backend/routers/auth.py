@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from backend.core.dependencies import get_current_parent
 from backend.database.models import Parent
 from backend.database.session import get_db
-from backend.core.dependencies import get_current_parent
-from backend.schemas.auth import ParentLogin, ParentRegister, ParentResponse, TokenResponse
+from backend.schemas.auth import (
+    ParentLogin,
+    ParentRegister,
+    ParentResponse,
+    TokenResponse,
+)
 from backend.services.auth import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])

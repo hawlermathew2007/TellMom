@@ -6,17 +6,18 @@ import json
 import logging
 
 import httpx
-from shared.schemas.tunnel import EncryptedMessage
+
 from shared.schemas.response import ResponseStatus
+from shared.schemas.tunnel import EncryptedMessage
 from shared.services.security import (
-    generate_dh_private_key,
-    derive_dh_public_key,
-    derive_shared_secret,
-    derive_session_keys,
-    encrypt_message,
-    decrypt_message,
-    int_to_b64,
     b64_to_int,
+    decrypt_message,
+    derive_dh_public_key,
+    derive_session_keys,
+    derive_shared_secret,
+    encrypt_message,
+    generate_dh_private_key,
+    int_to_b64,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class SecureProxyClient:
             aes_key=self.aes_key,
             nonce_base=server_nonce,
             encrypted_message=EncryptedMessage(**data),
-            aad=f"{self.session_id}:{server_sequence}".encode("utf-8"),
+            aad=f"{self.session_id}:{server_sequence}".encode(),
         ).decode()
         return decrypted
 
